@@ -31,14 +31,21 @@ from ecoscope_workflows_core.tasks.transformation import (
     extract_column_as_type as extract_column_as_type,
 )
 from ecoscope_workflows_core.tasks.transformation import filter_df as filter_df
+from ecoscope_workflows_core.tasks.transformation import map_columns as map_columns
 from ecoscope_workflows_ext_custom.tasks.io import html_to_png as html_to_png
 from ecoscope_workflows_ext_custom.tasks.io import load_df as load_df
+from ecoscope_workflows_ext_custom.tasks.io import (
+    process_events_details as process_events_details,
+)
 from ecoscope_workflows_ext_custom.tasks.results import (
     create_scatterplot_layer as create_scatterplot_layer,
 )
 from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map
 from ecoscope_workflows_ext_custom.tasks.results import (
     set_base_maps_pydeck as set_base_maps_pydeck,
+)
+from ecoscope_workflows_ext_custom.tasks.transformation import (
+    drop_column_prefix as drop_column_prefix,
 )
 from ecoscope_workflows_ext_custom.tasks.transformation import (
     drop_null_geometry as drop_null_geometry,
@@ -60,15 +67,12 @@ from ecoscope_workflows_ext_mnc.tasks import (
 from ecoscope_workflows_ext_mnc.tasks import (
     exclude_geom_outliers as exclude_geom_outliers,
 )
-from ecoscope_workflows_ext_mnc.tasks import filter_columns as filter_columns
 from ecoscope_workflows_ext_mnc.tasks import map_column_values as map_column_values
 from ecoscope_workflows_ext_mnc.tasks import (
     replace_missing_with_label as replace_missing_with_label,
 )
-from ecoscope_workflows_ext_mnc.tasks import to_sentence_case as to_sentence_case
-from ecoscope_workflows_ext_mnc.tasks import transform_columns as transform_columns
 from ecoscope_workflows_ext_ste.tasks import (
-    annotate_gdf_dict_with_geom_type as annotate_gdf_dict_with_geom_type,
+    annotate_gdf_dict_with_geom_type as annotate_gdf_dict_with_geom_type_1,
 )
 from ecoscope_workflows_ext_ste.tasks import (
     combine_deckgl_map_layers as combine_deckgl_map_layers,
@@ -85,7 +89,7 @@ from ecoscope_workflows_ext_ste.tasks import (
 from ecoscope_workflows_ext_ste.tasks import (
     fetch_and_persist_file as fetch_and_persist_file,
 )
-from ecoscope_workflows_ext_ste.tasks import get_gdf_geom_type as get_gdf_geom_type
+from ecoscope_workflows_ext_ste.tasks import get_gdf_geom_type as get_gdf_geom_type_1
 from ecoscope_workflows_ext_ste.tasks import split_gdf_by_column as split_gdf_by_column
 from ecoscope_workflows_ext_ste.tasks import view_state_deck_gdf as view_state_deck_gdf
 
@@ -330,7 +334,7 @@ annotate_comm_gdf_dict_params = dict()
 
 
 annotate_comm_gdf_dict = (
-    annotate_gdf_dict_with_geom_type.set_task_instance_id("annotate_comm_gdf_dict")
+    annotate_gdf_dict_with_geom_type_1.set_task_instance_id("annotate_comm_gdf_dict")
     .handle_errors()
     .with_tracing()
     .partial(gdf_dict=split_gdf_by_zone, **annotate_comm_gdf_dict_params)
@@ -601,7 +605,7 @@ assign_mnc_geom_params = dict()
 
 
 assign_mnc_geom = (
-    get_gdf_geom_type.set_task_instance_id("assign_mnc_geom")
+    get_gdf_geom_type_1.set_task_instance_id("assign_mnc_geom")
     .handle_errors()
     .with_tracing()
     .partial(gdf=load_mnc_parcels, **assign_mnc_geom_params)
@@ -681,7 +685,12 @@ get_events_data = (
             "event_details",
             "patrols",
         ],
-        event_types=[],
+        event_types=[
+            "mobile_boma_rep",
+            "cattle_count",
+            "livestock_predation_rep",
+            "illegal_grazing_rep",
+        ],
         raise_on_empty=True,
         include_details=True,
         include_updates=False,
@@ -764,7 +773,7 @@ events_temporal = (
 
 
 # %% [markdown]
-# ## Retrieve mobile_boma_rep
+# ## Retrieve mobile boma events only
 
 # %%
 # parameters
@@ -787,11 +796,11 @@ filter_mobile_boma = (
         unpack_depth=1,
     )
     .partial(
+        df=events_temporal,
         column_name="event_type",
         op="equal",
         value="mobile_boma_rep",
-        df=events_temporal,
-        reset_index=False,
+        reset_index=True,
         **filter_mobile_boma_params,
     )
     .call()
@@ -799,19 +808,19 @@ filter_mobile_boma = (
 
 
 # %% [markdown]
-# ## Retrieve cattle_count
+# ## Retrieve livestock predation events only
 
 # %%
 # parameters
 
-filter_cattle_count_params = dict()
+filter_livestock_predation_params = dict()
 
 # %%
 # call the task
 
 
-filter_cattle_count = (
-    filter_df.set_task_instance_id("filter_cattle_count")
+filter_livestock_predation = (
+    filter_df.set_task_instance_id("filter_livestock_predation")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -822,31 +831,101 @@ filter_cattle_count = (
         unpack_depth=1,
     )
     .partial(
+        df=events_temporal,
+        column_name="event_type",
+        op="equal",
+        value="livestock_predation_rep",
+        reset_index=True,
+        **filter_livestock_predation_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Filter cattle count events only
+
+# %%
+# parameters
+
+filter_cattle_counts_params = dict()
+
+# %%
+# call the task
+
+
+filter_cattle_counts = (
+    filter_df.set_task_instance_id("filter_cattle_counts")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=events_temporal,
         column_name="event_type",
         op="equal",
         value="cattle_count",
+        reset_index=True,
+        **filter_cattle_counts_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Filter out illegal grazing events only
+
+# %%
+# parameters
+
+filter_illegal_grazing_params = dict()
+
+# %%
+# call the task
+
+
+filter_illegal_grazing = (
+    filter_df.set_task_instance_id("filter_illegal_grazing")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
         df=events_temporal,
-        reset_index=False,
-        **filter_cattle_count_params,
+        column_name="event_type",
+        op="equal",
+        value="illegal_grazing_rep",
+        reset_index=True,
+        **filter_illegal_grazing_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Normalize event details columns
+# ## Process mobile boma event details
 
 # %%
 # parameters
 
-normalize_mb_values_params = dict()
+process_mobile_boma_params = dict()
 
 # %%
 # call the task
 
 
-normalize_mb_values = (
-    normalize_json_column.set_task_instance_id("normalize_mb_values")
+process_mobile_boma = (
+    process_events_details.set_task_instance_id("process_mobile_boma")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -857,30 +936,30 @@ normalize_mb_values = (
         unpack_depth=1,
     )
     .partial(
-        column="event_details",
         df=filter_mobile_boma,
-        skip_if_not_exists=True,
-        sort_columns=True,
-        **normalize_mb_values_params,
+        client=er_client_name,
+        map_to_titles=True,
+        ordered=True,
+        **process_mobile_boma_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Normalize event details columns
+# ## Normalize mobile boma events
 
 # %%
 # parameters
 
-normalize_cc_values_params = dict()
+normalize_mobile_boma_params = dict()
 
 # %%
 # call the task
 
 
-normalize_cc_values = (
-    normalize_json_column.set_task_instance_id("normalize_cc_values")
+normalize_mobile_boma = (
+    normalize_json_column.set_task_instance_id("normalize_mobile_boma")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -891,30 +970,30 @@ normalize_cc_values = (
         unpack_depth=1,
     )
     .partial(
+        df=process_mobile_boma,
         column="event_details",
-        df=filter_cattle_count,
         skip_if_not_exists=True,
         sort_columns=True,
-        **normalize_cc_values_params,
+        **normalize_mobile_boma_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Rename mobile boma columns
+# ## Drop mobile boma column prefix
 
 # %%
 # parameters
 
-rename_mobile_boma_params = dict()
+drop_mobile_prefix_params = dict()
 
 # %%
 # call the task
 
 
-rename_mobile_boma = (
-    transform_columns.set_task_instance_id("rename_mobile_boma")
+drop_mobile_prefix = (
+    drop_column_prefix.set_task_instance_id("drop_mobile_prefix")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -925,32 +1004,377 @@ rename_mobile_boma = (
         unpack_depth=1,
     )
     .partial(
+        df=normalize_mobile_boma,
+        prefix="event_details__",
+        duplicate_strategy="keep_original",
+        **drop_mobile_prefix_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Process livestock predation event details
+
+# %%
+# parameters
+
+process_livestock_preds_params = dict()
+
+# %%
+# call the task
+
+
+process_livestock_preds = (
+    process_events_details.set_task_instance_id("process_livestock_preds")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=filter_livestock_predation,
+        client=er_client_name,
+        map_to_titles=True,
+        ordered=True,
+        **process_livestock_preds_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Normalize livestock predation events
+
+# %%
+# parameters
+
+normalize_livestock_preds_params = dict()
+
+# %%
+# call the task
+
+
+normalize_livestock_preds = (
+    normalize_json_column.set_task_instance_id("normalize_livestock_preds")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=process_livestock_preds,
+        column="event_details",
+        skip_if_not_exists=True,
+        sort_columns=True,
+        **normalize_livestock_preds_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Drop livestock predation column prefix
+
+# %%
+# parameters
+
+drop_predation_prefix_params = dict()
+
+# %%
+# call the task
+
+
+drop_predation_prefix = (
+    drop_column_prefix.set_task_instance_id("drop_predation_prefix")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=normalize_livestock_preds,
+        prefix="event_details__",
+        duplicate_strategy="keep_original",
+        **drop_predation_prefix_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Process cattle count event details
+
+# %%
+# parameters
+
+process_cattle_counts_params = dict()
+
+# %%
+# call the task
+
+
+process_cattle_counts = (
+    process_events_details.set_task_instance_id("process_cattle_counts")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=filter_cattle_counts,
+        client=er_client_name,
+        map_to_titles=True,
+        ordered=True,
+        **process_cattle_counts_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Normalize cattle count events
+
+# %%
+# parameters
+
+normalize_cattle_count_params = dict()
+
+# %%
+# call the task
+
+
+normalize_cattle_count = (
+    normalize_json_column.set_task_instance_id("normalize_cattle_count")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=process_cattle_counts,
+        column="event_details",
+        skip_if_not_exists=True,
+        sort_columns=True,
+        **normalize_cattle_count_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Drop cattle count column prefix
+
+# %%
+# parameters
+
+drop_cattle_prefix_params = dict()
+
+# %%
+# call the task
+
+
+drop_cattle_prefix = (
+    drop_column_prefix.set_task_instance_id("drop_cattle_prefix")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=normalize_cattle_count,
+        prefix="event_details__",
+        duplicate_strategy="keep_original",
+        **drop_cattle_prefix_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Process illegal grazing event details
+
+# %%
+# parameters
+
+process_illegal_grazing_params = dict()
+
+# %%
+# call the task
+
+
+process_illegal_grazing = (
+    process_events_details.set_task_instance_id("process_illegal_grazing")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=filter_illegal_grazing,
+        client=er_client_name,
+        map_to_titles=True,
+        ordered=True,
+        **process_illegal_grazing_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Normalize illegal grazing events
+
+# %%
+# parameters
+
+normalize_illegal_grazing_params = dict()
+
+# %%
+# call the task
+
+
+normalize_illegal_grazing = (
+    normalize_json_column.set_task_instance_id("normalize_illegal_grazing")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=process_illegal_grazing,
+        column="event_details",
+        skip_if_not_exists=True,
+        sort_columns=True,
+        **normalize_illegal_grazing_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Drop illegal grazing column prefix
+
+# %%
+# parameters
+
+drop_illegal_prefix_params = dict()
+
+# %%
+# call the task
+
+
+drop_illegal_prefix = (
+    drop_column_prefix.set_task_instance_id("drop_illegal_prefix")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=normalize_illegal_grazing,
+        prefix="event_details__",
+        duplicate_strategy="keep_original",
+        **drop_illegal_prefix_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Map mobile boma columns
+
+# %%
+# parameters
+
+map_mobile_boma_params = dict()
+
+# %%
+# call the task
+
+
+map_mobile_boma = (
+    map_columns.set_task_instance_id("map_mobile_boma")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=drop_mobile_prefix,
         drop_columns=[],
-        retain_columns=[],
-        rename_columns={"event_details__mobile_boma": "boma"},
-        skip_missing_rename=True,
-        required_columns=["event_details__mobile_boma"],
-        df=normalize_mb_values,
-        **rename_mobile_boma_params,
+        retain_columns=[
+            "id",
+            "date",
+            "event_type",
+            "geometry",
+            "Date of Relocation",
+            "Electric Boma Status",
+            "Mobile Boma Zone",
+            "Nature of the Site",
+            "Reason for relocation",
+        ],
+        rename_columns={},
+        raise_if_not_found=False,
+        **map_mobile_boma_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Rename cattle count columns
+# ## Summarize mobile boma events
 
 # %%
 # parameters
 
-rename_cattle_count_params = dict()
+summarize_mobile_boma_params = dict()
 
 # %%
 # call the task
 
 
-rename_cattle_count = (
-    transform_columns.set_task_instance_id("rename_cattle_count")
+summarize_mobile_boma = (
+    summarize_df.set_task_instance_id("summarize_mobile_boma")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -961,107 +1385,37 @@ rename_cattle_count = (
         unpack_depth=1,
     )
     .partial(
-        drop_columns=[],
-        retain_columns=[],
-        rename_columns={
-            "event_details__cattle_in_zone_4": "zone_4",
-            "event_details__cattle_in_zone_1_outside_mobile_boma": "zone_1",
-            "event_details__cattle_in_zone_23_outside_mobile_boma": "zone_2_3",
-            "event_details__total_cattle_counted_from_all_zones": "total_count",
-        },
-        skip_missing_rename=True,
-        required_columns=["event_details__total_cattle_counted_from_all_zones"],
-        df=normalize_cc_values,
-        **rename_cattle_count_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Rename mobile_boma_rep value to Mobile Boma
-
-# %%
-# parameters
-
-rename_boma_values_params = dict()
-
-# %%
-# call the task
-
-
-rename_boma_values = (
-    map_column_values.set_task_instance_id("rename_boma_values")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        df=rename_mobile_boma,
-        columns=["event_type"],
-        value_map={"mobile_boma_rep": "Mobile boma"},
-        inplace=False,
-        **rename_boma_values_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Calculate total boma counts
-
-# %%
-# parameters
-
-calculate_total_boma_params = dict()
-
-# %%
-# call the task
-
-
-calculate_total_boma = (
-    summarize_df.set_task_instance_id("calculate_total_boma")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
+        df=map_mobile_boma,
         groupby_cols=["date"],
         summary_params=[
-            {"display_name": "total_count", "aggregator": "nunique", "column": "id"}
+            {
+                "display_name": "boma_events",
+                "aggregator": "nunique",
+                "column": "id",
+                "decimal_places": 0,
+            }
         ],
         reset_index=True,
-        df=rename_boma_values,
-        **calculate_total_boma_params,
+        **summarize_mobile_boma_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Add total row on total boma counts
+# ## Add totals row on mobile boma summary table
 
 # %%
 # parameters
 
-add_total_boma_row_params = dict()
+add_mobile_summary_row_params = dict()
 
 # %%
 # call the task
 
 
-add_total_boma_row = (
-    add_totals_row.set_task_instance_id("add_total_boma_row")
+add_mobile_summary_row = (
+    add_totals_row.set_task_instance_id("add_mobile_summary_row")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1074,27 +1428,27 @@ add_total_boma_row = (
     .partial(
         label_col=["date"],
         label="Total",
-        df=calculate_total_boma,
-        **add_total_boma_row_params,
+        df=summarize_mobile_boma,
+        **add_mobile_summary_row_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Persist total boma count df
+# ## Persist mobile boma summary table
 
 # %%
 # parameters
 
-persist_boma_count_df_params = dict()
+persist_boma_summary_params = dict()
 
 # %%
 # call the task
 
 
-persist_boma_count_df = (
-    persist_df.set_task_instance_id("persist_boma_count_df")
+persist_boma_summary = (
+    persist_df.set_task_instance_id("persist_boma_summary")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1107,28 +1461,28 @@ persist_boma_count_df = (
     .partial(
         root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
         filetype="csv",
-        df=add_total_boma_row,
-        filename="total_boma_count_by_date",
-        **persist_boma_count_df_params,
+        df=add_mobile_summary_row,
+        filename="mobile_boma_movement_summary_table",
+        **persist_boma_summary_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Cattle count summary table
+# ## Exclude geom outliers from mobile boma events
 
 # %%
 # parameters
 
-filter_cattle_cols_params = dict()
+exclude_mobile_outliers_params = dict()
 
 # %%
 # call the task
 
 
-filter_cattle_cols = (
-    filter_columns.set_task_instance_id("filter_cattle_cols")
+exclude_mobile_outliers = (
+    exclude_geom_outliers.set_task_instance_id("exclude_mobile_outliers")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1138,74 +1492,7 @@ filter_cattle_cols = (
         ],
         unpack_depth=1,
     )
-    .partial(
-        df=rename_cattle_count,
-        columns=["date", "zone_1", "zone_2_3", "zone_4", "total_count"],
-        exclude=[],
-        **filter_cattle_cols_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Persist cattle count summary table
-
-# %%
-# parameters
-
-persist_cattle_count_df_params = dict()
-
-# %%
-# call the task
-
-
-persist_cattle_count_df = (
-    persist_df.set_task_instance_id("persist_cattle_count_df")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-        filetype="csv",
-        filename="mobile_boma_summary_table",
-        df=filter_cattle_cols,
-        **persist_cattle_count_df_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Exclude geom outliers from mobile_boma_rep events
-
-# %%
-# parameters
-
-exclude_mb_outliers_params = dict()
-
-# %%
-# call the task
-
-
-exclude_mb_outliers = (
-    exclude_geom_outliers.set_task_instance_id("exclude_mb_outliers")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(df=rename_boma_values, z_threshold=3, **exclude_mb_outliers_params)
+    .partial(df=map_mobile_boma, z_threshold=3, **exclude_mobile_outliers_params)
     .call()
 )
 
@@ -1216,14 +1503,14 @@ exclude_mb_outliers = (
 # %%
 # parameters
 
-remove_mb_invalid_geoms_params = dict()
+remove_mobile_invalids_params = dict()
 
 # %%
 # call the task
 
 
-remove_mb_invalid_geoms = (
-    drop_null_geometry.set_task_instance_id("remove_mb_invalid_geoms")
+remove_mobile_invalids = (
+    drop_null_geometry.set_task_instance_id("remove_mobile_invalids")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1234,28 +1521,28 @@ remove_mb_invalid_geoms = (
         unpack_depth=1,
     )
     .partial(
-        gdf=exclude_mb_outliers,
+        gdf=exclude_mobile_outliers,
         geometry_column="geometry",
-        **remove_mb_invalid_geoms_params,
+        **remove_mobile_invalids_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Apply Colormap to mobile boma events
+# ## Apply colormap to mobile boma events
 
 # %%
 # parameters
 
-apply_mb_colormap_params = dict()
+mobile_colormap_params = dict()
 
 # %%
 # call the task
 
 
-apply_mb_colormap = (
-    apply_color_map.set_task_instance_id("apply_mb_colormap")
+mobile_colormap = (
+    apply_color_map.set_task_instance_id("mobile_colormap")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1269,8 +1556,8 @@ apply_mb_colormap = (
         input_column_name="event_type",
         output_column_name="event_type_colors",
         colormap="tab20",
-        df=remove_mb_invalid_geoms,
-        **apply_mb_colormap_params,
+        df=remove_mobile_invalids,
+        **mobile_colormap_params,
     )
     .call()
 )
@@ -1282,14 +1569,14 @@ apply_mb_colormap = (
 # %%
 # parameters
 
-generate_mb_layers_params = dict()
+generate_mobile_layers_params = dict()
 
 # %%
 # call the task
 
 
-generate_mb_layers = (
-    create_scatterplot_layer.set_task_instance_id("generate_mb_layers")
+generate_mobile_layers = (
+    create_scatterplot_layer.set_task_instance_id("generate_mobile_layers")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1314,8 +1601,9 @@ generate_mb_layers = (
             "sort": "ascending",
             "label_suffix": None,
         },
-        geodataframe=apply_mb_colormap,
-        **generate_mb_layers_params,
+        data_url=None,
+        geodataframe=mobile_colormap,
+        **generate_mobile_layers_params,
     )
     .call()
 )
@@ -1378,7 +1666,7 @@ combine_custom_mobile_boma = (
             create_mnc_parcels_layers,
             conservancy_text_layer,
         ],
-        grouped_layers=generate_mb_layers,
+        grouped_layers=generate_mobile_layers,
         **combine_custom_mobile_boma_params,
     )
     .call()
@@ -1391,7 +1679,7 @@ combine_custom_mobile_boma = (
 # %%
 # parameters
 
-draw_mb_map_params = dict(
+draw_mobile_boma_params = dict(
     widget_id=...,
 )
 
@@ -1399,8 +1687,8 @@ draw_mb_map_params = dict(
 # call the task
 
 
-draw_mb_map = (
-    draw_map.set_task_instance_id("draw_mb_map")
+draw_mobile_boma = (
+    draw_map.set_task_instance_id("draw_mobile_boma")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1418,7 +1706,7 @@ draw_mb_map = (
         legend_style={"placement": "bottom-right"},
         geo_layers=combine_custom_mobile_boma,
         view_state=global_zoom_value,
-        **draw_mb_map_params,
+        **draw_mobile_boma_params,
     )
     .call()
 )
@@ -1451,7 +1739,7 @@ persist_mobile_boma_urls = (
     )
     .partial(
         root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-        text=draw_mb_map,
+        text=draw_mobile_boma,
         filename="boma_movement_map.html",
         **persist_mobile_boma_urls_params,
     )
@@ -1460,19 +1748,19 @@ persist_mobile_boma_urls = (
 
 
 # %% [markdown]
-# ## Retrieve livestock_predation_rep events
+# ## Convert mobile boma map to png
 
 # %%
 # parameters
 
-filter_predation_params = dict()
+convert_mobile_boma_png_params = dict()
 
 # %%
 # call the task
 
 
-filter_predation = (
-    filter_df.set_task_instance_id("filter_predation")
+convert_mobile_boma_png = (
+    html_to_png.set_task_instance_id("convert_mobile_boma_png")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1483,126 +1771,34 @@ filter_predation = (
         unpack_depth=1,
     )
     .partial(
-        column_name="event_type",
-        op="equal",
-        value="livestock_predation_rep",
-        df=events_temporal,
-        reset_index=False,
-        **filter_predation_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Normalize event details columns
-
-# %%
-# parameters
-
-normalize_predation_values_params = dict()
-
-# %%
-# call the task
-
-
-normalize_predation_values = (
-    normalize_json_column.set_task_instance_id("normalize_predation_values")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        column="event_details",
-        df=filter_predation,
-        skip_if_not_exists=True,
-        sort_columns=True,
-        **normalize_predation_values_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Rename livestock predation columns
-
-# %%
-# parameters
-
-rename_livestock_predation_params = dict()
-
-# %%
-# call the task
-
-
-rename_livestock_predation = (
-    transform_columns.set_task_instance_id("rename_livestock_predation")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        drop_columns=[],
-        retain_columns=[],
-        rename_columns={
-            "event_details__livestockpredation_comments": "livestock_predation_comments",
-            "event_details__livestockpredation_location": "predation_location",
-            "event_details__livestockpredation_causedeath": "predation_cause_of_death",
-            "event_details__livestockpredation_retaliation": "predation_retaliation",
-            "event_details__livestockpredation_supervision": "predation_supervision",
-            "event_details__livestockpredation_predatorcount": "predator_count",
-            "event_details__livestockpredation_killedjuvenile": "killed_juvenile",
-            "event_details__livestockpredation_livestockowner": "livestock_owner",
-            "event_details__livestockpredation_distancetopeople": "distance_to_people",
-            "event_details__livestockpredation_livestockspecies": "livestock_species",
-            "event_details__livestockpredation_livestockaffected": "livestock_affected",
-            "event_details__livestockpredation_suspectedpredator": "suspected_predator",
-            "event_details__livestockpredation_bomacontext": "boma_context",
-            "event_details__livestockpredation_killedadultmale": "killed_adult_male",
-            "event_details__livestockpredation_bomaconstruction": "boma_construction",
-            "event_details__livestockpredation_woundedjuvenile": "wounded_juvenile",
-            "event_details__livestockpredation_woundedadultfemale": "wounded_adult_female",
-            "event_details__livestockpredation_woundedadultmale": "wounded_adult_male",
-            "event_details__livestockpredation_bomaheight": "boma_height",
-            "event_details__livestockpredation_bomavisibility": "boma_visibility",
+        output_dir=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        html_path=persist_mobile_boma_urls,
+        config={
+            "full_page": False,
+            "device_scale_factor": 2.0,
+            "wait_for_timeout": 40000,
+            "max_concurrent_pages": 1,
         },
-        skip_missing_rename=True,
-        required_columns=[
-            "event_details__livestockpredation_livestockaffected",
-            "event_details__livestockpredation_livestockspecies",
-            "event_details__livestockpredation_suspectedpredator",
-        ],
-        df=normalize_predation_values,
-        **rename_livestock_predation_params,
+        **convert_mobile_boma_png_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Replace nulls on livestock predator table with unknown
+# ## Map cattle count columns
 
 # %%
 # parameters
 
-replace_livestock_nulls_params = dict()
+map_cattle_count_params = dict()
 
 # %%
 # call the task
 
 
-replace_livestock_nulls = (
-    replace_missing_with_label.set_task_instance_id("replace_livestock_nulls")
+map_cattle_count = (
+    map_columns.set_task_instance_id("map_cattle_count")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1613,130 +1809,42 @@ replace_livestock_nulls = (
         unpack_depth=1,
     )
     .partial(
-        df=rename_livestock_predation,
-        columns=["suspected_predator", "livestock_species"],
-        label="unknown",
-        **replace_livestock_nulls_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Convert livestock_affected col to int
-
-# %%
-# parameters
-
-convert_livestock_int_params = dict()
-
-# %%
-# call the task
-
-
-convert_livestock_int = (
-    convert_to_int.set_task_instance_id("convert_livestock_int")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
+        df=drop_cattle_prefix,
+        drop_columns=[],
+        retain_columns=[
+            "date",
+            "# cattle in Zone 1 mobile boma",
+            "# cattle in Zone 2/3 mobile boma",
+            "# cattle in Zone 4",
+            "total_cattle_counted_from_all_zones",
         ],
-        unpack_depth=1,
-    )
-    .partial(
-        df=replace_livestock_nulls,
-        columns=["livestock_affected"],
-        errors="coerce",
-        fill_value=0,
-        inplace=False,
-        **convert_livestock_int_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Capitalize columns in livestock predation
-
-# %%
-# parameters
-
-livestock_preds_scase_params = dict()
-
-# %%
-# call the task
-
-
-livestock_preds_scase = (
-    to_sentence_case.set_task_instance_id("livestock_preds_scase")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        df=convert_livestock_int,
-        columns=["suspected_predator", "livestock_species"],
-        **livestock_preds_scase_params,
+        rename_columns={
+            "# cattle in Zone 1 mobile boma": "zone_1",
+            "# cattle in Zone 2/3 mobile boma": "zone_2_3",
+            "# cattle in Zone 4": "zone_4",
+            "total_cattle_counted_from_all_zones": "total_count",
+        },
+        raise_if_not_found=False,
+        **map_cattle_count_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Persist livestock predation event details as gpkg
+# ## Persist cattle count table
 
 # %%
 # parameters
 
-persist_livestock_events_gpkg_params = dict()
+persist_cattle_count_params = dict()
 
 # %%
 # call the task
 
 
-persist_livestock_events_gpkg = (
-    persist_df.set_task_instance_id("persist_livestock_events_gpkg")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-        filetype="gpkg",
-        filename="livestock_predation_events",
-        df=livestock_preds_scase,
-        **persist_livestock_events_gpkg_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Persist livestock predation event details as csv
-
-# %%
-# parameters
-
-persist_livestock_events_csv_params = dict()
-
-# %%
-# call the task
-
-
-persist_livestock_events_csv = (
-    persist_df.set_task_instance_id("persist_livestock_events_csv")
+persist_cattle_count = (
+    persist_df.set_task_instance_id("persist_cattle_count")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1749,28 +1857,28 @@ persist_livestock_events_csv = (
     .partial(
         root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
         filetype="csv",
-        filename="livestock_predation_events",
-        df=livestock_preds_scase,
-        **persist_livestock_events_csv_params,
+        df=map_cattle_count,
+        filename="total_cattle_count_summary_table",
+        **persist_cattle_count_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Livestock predation summary table
+# ## Map livestock predation events
 
 # %%
 # parameters
 
-livestock_predation_summary_params = dict()
+map_livestock_predation_params = dict()
 
 # %%
 # call the task
 
 
-livestock_predation_summary = (
-    summarize_df.set_task_instance_id("livestock_predation_summary")
+map_livestock_predation = (
+    map_columns.set_task_instance_id("map_livestock_predation")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1781,106 +1889,80 @@ livestock_predation_summary = (
         unpack_depth=1,
     )
     .partial(
-        groupby_cols=["date", "suspected_predator", "livestock_species"],
+        df=drop_predation_prefix,
+        drop_columns=[],
+        retain_columns=[
+            "id",
+            "date",
+            "event_type",
+            "geometry",
+            "Livestock Species",
+            "Suspected Predator",
+            "Total livestock affected",
+        ],
+        rename_columns={},
+        raise_if_not_found=False,
+        **map_livestock_predation_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Summarize livestock predation events
+
+# %%
+# parameters
+
+summarize_predation_events_params = dict()
+
+# %%
+# call the task
+
+
+summarize_predation_events = (
+    summarize_df.set_task_instance_id("summarize_predation_events")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=map_livestock_predation,
+        groupby_cols=["date"],
         summary_params=[
             {
-                "display_name": "no_affected",
-                "aggregator": "sum",
-                "column": "livestock_affected",
+                "display_name": "livestock_predation_events",
+                "aggregator": "nunique",
+                "column": "id",
+                "decimal_places": 0,
             }
         ],
         reset_index=True,
-        df=livestock_preds_scase,
-        **livestock_predation_summary_params,
+        **summarize_predation_events_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Persist livestock predation summary table
+# ## Add totals row on livestock predation events summary table
 
 # %%
 # parameters
 
-persist_livestock_df_params = dict()
+add_predation_summary_row_params = dict()
 
 # %%
 # call the task
 
 
-persist_livestock_df = (
-    persist_df.set_task_instance_id("persist_livestock_df")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-        filetype="csv",
-        filename="livestock_predation_summary_table",
-        df=livestock_predation_summary,
-        **persist_livestock_df_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Calculate livestock events recorded by date
-
-# %%
-# parameters
-
-livestock_events_recorded_params = dict()
-
-# %%
-# call the task
-
-
-livestock_events_recorded = (
-    summarize_df.set_task_instance_id("livestock_events_recorded")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        groupby_cols=["date"],
-        summary_params=[
-            {"display_name": "no_of_events", "aggregator": "nunique", "column": "id"}
-        ],
-        reset_index=True,
-        df=livestock_preds_scase,
-        **livestock_events_recorded_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Add total row on livestock events recorded
-
-# %%
-# parameters
-
-add_total_livestock_params = dict()
-
-# %%
-# call the task
-
-
-add_total_livestock = (
-    add_totals_row.set_task_instance_id("add_total_livestock")
+add_predation_summary_row = (
+    add_totals_row.set_task_instance_id("add_predation_summary_row")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1893,27 +1975,27 @@ add_total_livestock = (
     .partial(
         label_col=["date"],
         label="Total",
-        df=livestock_events_recorded,
-        **add_total_livestock_params,
+        df=summarize_predation_events,
+        **add_predation_summary_row_params,
     )
     .call()
 )
 
 
 # %% [markdown]
-# ## Persist livestock events df
+# ## Persist livestock predation summary table
 
 # %%
 # parameters
 
-livestock_events_df_params = dict()
+persist_predation_summary_params = dict()
 
 # %%
 # call the task
 
 
-livestock_events_df = (
-    persist_df.set_task_instance_id("livestock_events_df")
+persist_predation_summary = (
+    persist_df.set_task_instance_id("persist_predation_summary")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -1926,9 +2008,9 @@ livestock_events_df = (
     .partial(
         root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
         filetype="csv",
-        df=add_total_livestock,
-        filename="livestock_events_recorded_by_date",
-        **livestock_events_df_params,
+        df=add_predation_summary_row,
+        filename="total_livestock_predation_summary_table",
+        **persist_predation_summary_params,
     )
     .call()
 )
@@ -1958,7 +2040,7 @@ exclude_livestock_outliers = (
         unpack_depth=1,
     )
     .partial(
-        df=livestock_preds_scase, z_threshold=3, **exclude_livestock_outliers_params
+        df=map_livestock_predation, z_threshold=3, **exclude_livestock_outliers_params
     )
     .call()
 )
@@ -1997,7 +2079,7 @@ remove_livestock_invalid_geoms = (
 
 
 # %% [markdown]
-# ## Apply Colormap to livestock predation events
+# ## Apply colormap to livestock predation events
 
 # %%
 # parameters
@@ -2020,7 +2102,7 @@ apply_livestock_colormap = (
         unpack_depth=1,
     )
     .partial(
-        input_column_name="livestock_species",
+        input_column_name="Livestock Species",
         output_column_name="colors",
         colormap="tab20",
         df=remove_livestock_invalid_geoms,
@@ -2063,11 +2145,12 @@ generate_livestock_layers = (
         },
         legend={
             "title": "Livestock Species",
-            "label_column": "livestock_species",
+            "label_column": "Livestock Species",
             "color_column": "colors",
             "sort": "ascending",
             "label_suffix": None,
         },
+        data_url=None,
         geodataframe=apply_livestock_colormap,
         **generate_livestock_layers_params,
     )
@@ -2192,44 +2275,6 @@ persist_livestock_urls = (
 
 
 # %% [markdown]
-# ## Convert mobile boma map to png
-
-# %%
-# parameters
-
-convert_mobile_boma_png_params = dict()
-
-# %%
-# call the task
-
-
-convert_mobile_boma_png = (
-    html_to_png.set_task_instance_id("convert_mobile_boma_png")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        output_dir=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-        html_path=persist_mobile_boma_urls,
-        config={
-            "full_page": False,
-            "device_scale_factor": 2.0,
-            "wait_for_timeout": 40000,
-            "max_concurrent_pages": 1,
-        },
-        **convert_mobile_boma_png_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
 # ## Convert livestock map to png
 
 # %%
@@ -2262,6 +2307,512 @@ convert_livestock_png = (
             "max_concurrent_pages": 1,
         },
         **convert_livestock_png_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Map livestock predation for summary table
+
+# %%
+# parameters
+
+map_livestock_summary_params = dict()
+
+# %%
+# call the task
+
+
+map_livestock_summary = (
+    map_columns.set_task_instance_id("map_livestock_summary")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=map_livestock_predation,
+        drop_columns=[],
+        retain_columns=[
+            "date",
+            "Livestock Species",
+            "Suspected Predator",
+            "Total livestock affected",
+        ],
+        rename_columns={
+            "Livestock Species": "livestock_species",
+            "Suspected Predator": "suspected_predator",
+            "Total livestock affected": "total_livestock_affected",
+        },
+        raise_if_not_found=False,
+        **map_livestock_summary_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Replace nulls on livestock predator table with unknown
+
+# %%
+# parameters
+
+replace_livestock_nulls_params = dict()
+
+# %%
+# call the task
+
+
+replace_livestock_nulls = (
+    replace_missing_with_label.set_task_instance_id("replace_livestock_nulls")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=map_livestock_summary,
+        columns=["suspected_predator", "livestock_species"],
+        label="Unknown",
+        **replace_livestock_nulls_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Map others with Unknown
+
+# %%
+# parameters
+
+map_livestock_unknown_params = dict()
+
+# %%
+# call the task
+
+
+map_livestock_unknown = (
+    map_column_values.set_task_instance_id("map_livestock_unknown")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=replace_livestock_nulls,
+        columns=["suspected_predator"],
+        value_map={"Other (specify in comments)": "Unknown"},
+        inplace=True,
+        **map_livestock_unknown_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Convert livestock_affected col to int
+
+# %%
+# parameters
+
+convert_livestock_int_params = dict()
+
+# %%
+# call the task
+
+
+convert_livestock_int = (
+    convert_to_int.set_task_instance_id("convert_livestock_int")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=map_livestock_unknown,
+        columns=["total_livestock_affected"],
+        errors="coerce",
+        fill_value=0,
+        inplace=False,
+        **convert_livestock_int_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Persist livestock summary table
+
+# %%
+# parameters
+
+persist_livestock_summary_params = dict()
+
+# %%
+# call the task
+
+
+persist_livestock_summary = (
+    persist_df.set_task_instance_id("persist_livestock_summary")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        filetype="csv",
+        filename="livestock_predation_summary_table",
+        df=convert_livestock_int,
+        **persist_livestock_summary_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Map illegal grazing Events
+
+# %%
+# parameters
+
+map_illegal_grazing_params = dict()
+
+# %%
+# call the task
+
+
+map_illegal_grazing = (
+    map_columns.set_task_instance_id("map_illegal_grazing")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        df=drop_illegal_prefix,
+        drop_columns=[],
+        retain_columns=[
+            "date",
+            "event_type",
+            "geometry",
+            "Herd Zone",
+            "Landowner name",
+            "action taken",
+        ],
+        rename_columns={},
+        raise_if_not_found=False,
+        **map_illegal_grazing_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Exclude geom outliers from illegal grazing events
+
+# %%
+# parameters
+
+exclude_illegal_outliers_params = dict()
+
+# %%
+# call the task
+
+
+exclude_illegal_outliers = (
+    exclude_geom_outliers.set_task_instance_id("exclude_illegal_outliers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(df=map_illegal_grazing, z_threshold=3, **exclude_illegal_outliers_params)
+    .call()
+)
+
+
+# %% [markdown]
+# ## Remove illegal grazing invalid points
+
+# %%
+# parameters
+
+remove_illegal_invalids_params = dict()
+
+# %%
+# call the task
+
+
+remove_illegal_invalids = (
+    drop_null_geometry.set_task_instance_id("remove_illegal_invalids")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        gdf=exclude_illegal_outliers,
+        geometry_column="geometry",
+        **remove_illegal_invalids_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Apply colormap to illegal grazing events
+
+# %%
+# parameters
+
+illegal_colormap_params = dict()
+
+# %%
+# call the task
+
+
+illegal_colormap = (
+    apply_color_map.set_task_instance_id("illegal_colormap")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        input_column_name="event_type",
+        output_column_name="event_type_colors",
+        colormap="tab20",
+        df=remove_illegal_invalids,
+        **illegal_colormap_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Generate illegal grazing point layers
+
+# %%
+# parameters
+
+generate_illegal_layers_params = dict()
+
+# %%
+# call the task
+
+
+generate_illegal_layers = (
+    create_scatterplot_layer.set_task_instance_id("generate_illegal_layers")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        layer_style={
+            "get_fill_color": "event_type_colors",
+            "get_line_color": "event_type_colors",
+            "get_radius": 4,
+            "opacity": 0.75,
+            "stroked": True,
+        },
+        legend={
+            "title": "Illegal grazing",
+            "label_column": "event_type",
+            "color_column": "event_type_colors",
+            "sort": "ascending",
+            "label_suffix": None,
+        },
+        data_url=None,
+        geodataframe=illegal_colormap,
+        **generate_illegal_layers_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Combine styled layers with illegal grazing layer
+
+# %%
+# parameters
+
+combine_custom_illegal_params = dict()
+
+# %%
+# call the task
+
+
+combine_custom_illegal = (
+    combine_deckgl_map_layers.set_task_instance_id("combine_custom_illegal")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        static_layers=[create_mnc_styled_layers, conservancy_text_layer],
+        grouped_layers=generate_illegal_layers,
+        **combine_custom_illegal_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Draw illegal grazing events map
+
+# %%
+# parameters
+
+draw_illegal_grazing_params = dict(
+    widget_id=...,
+)
+
+# %%
+# call the task
+
+
+draw_illegal_grazing = (
+    draw_map.set_task_instance_id("draw_illegal_grazing")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        tile_layers=configure_base_maps,
+        static=False,
+        title=None,
+        max_zoom=10,
+        legend_style={"placement": "bottom-right"},
+        geo_layers=combine_custom_illegal,
+        view_state=global_zoom_value,
+        **draw_illegal_grazing_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Persist illegal grazing map HTML paths
+
+# %%
+# parameters
+
+persist_illegal_urls_params = dict(
+    filename_suffix=...,
+)
+
+# %%
+# call the task
+
+
+persist_illegal_urls = (
+    persist_text.set_task_instance_id("persist_illegal_urls")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        root_path=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        text=draw_illegal_grazing,
+        filename="illegal_grazing_map.html",
+        **persist_illegal_urls_params,
+    )
+    .call()
+)
+
+
+# %% [markdown]
+# ## Convert illegal grazing map to png
+
+# %%
+# parameters
+
+convert_illegal_png_params = dict()
+
+# %%
+# call the task
+
+
+convert_illegal_png = (
+    html_to_png.set_task_instance_id("convert_illegal_png")
+    .handle_errors()
+    .with_tracing()
+    .skipif(
+        conditions=[
+            any_is_empty_df,
+            any_dependency_skipped,
+        ],
+        unpack_depth=1,
+    )
+    .partial(
+        output_dir=os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+        html_path=persist_illegal_urls,
+        config={
+            "full_page": False,
+            "device_scale_factor": 2.0,
+            "wait_for_timeout": 40000,
+            "max_concurrent_pages": 1,
+        },
+        **convert_illegal_png_params,
     )
     .call()
 )
