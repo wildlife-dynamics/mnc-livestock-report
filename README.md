@@ -9,13 +9,14 @@ This guide walks you through configuring and running the MNC Livestock Report wo
 The workflow delivers, for each run:
 
 **CSV tables**
-- **mobile_boma_movement_summary_table.csv** — daily count of mobile boma movement events with a grand total row
+- **mobile_boma_movement_summary_table.csv** — daily count of unique mobile boma movement events with a grand total row
 - **total_cattle_count_summary_table.csv** — cattle counts per grazing zone per date
-- **livestock_predation_summary_table.csv** — records of livestock predation incidents by species, suspected predator, and number affected
+- **total_livestock_predation_summary_table.csv** — daily count of unique livestock predation events with a grand total row
+- **livestock_predation_summary_table.csv** — detailed predation records by species, suspected predator, and total animals affected
 
 **Maps (HTML + PNG)**
 - **boma_movement_map** — point map of mobile boma locations on MNC grazing zones and parcels, coloured by event type
-- **livestock_predation_events** — point map of predation incidents on conservancy boundaries, coloured by livestock species
+- **livestock_predation_events** — point map of predation incidents on conservancy boundaries and parcels, coloured by livestock species
 - **illegal_grazing_map** — point map of illegal grazing incidents on MNC grazing zones, coloured by event type
 
 ---
@@ -33,13 +34,13 @@ Before running the workflow, ensure you have:
 
 ### Step 1 — Add the Workflow Template
 
-In the workflow runner, go to **Workflow Templates** and click **Add Workflow Template**. Paste the GitHub repository URL into the **Github Link** field:
+In the Ecoscope app, navigate to the **Workflow Templates** tab and click **Add Workflow Template** (top-right). In the **Github Link** field that appears, paste the repository URL:
 
 ```
 https://github.com/wildlife-dynamics/mnc_livestock_report.git
 ```
 
-Then click **Add Template**.
+Then click **Add Template** to register the template.
 
 ![Add Workflow Template](data/screenshots/add_workflow.png)
 
@@ -47,7 +48,7 @@ Then click **Add Template**.
 
 ### Step 2 — Configure the EarthRanger Connection
 
-Navigate to **Data Sources** and click **Connect**, then select **EarthRanger**. Fill in the connection form:
+Navigate to **Data Sources** and click **Connect**. The **Connect Ecoscope to EarthRanger** dialog will open. Fill in the form:
 
 | Field | Description |
 |-------|-------------|
@@ -56,9 +57,9 @@ Navigate to **Data Sources** and click **Connect**, then select **EarthRanger**.
 | EarthRanger Username | Your EarthRanger username |
 | EarthRanger Password | Your EarthRanger password |
 
-> Credentials are not validated at setup time. Any authentication errors will appear when the workflow runs.
+> **Important:** Credentials entered here are **not** validated during setup. Any authentication errors will only appear when the workflow runs.
 
-Click **Connect** to save.
+Click **Connect** to save the data source.
 
 ![EarthRanger Connection](data/screenshots/er_connection.png)
 
@@ -66,7 +67,7 @@ Click **Connect** to save.
 
 ### Step 3 — Select the Workflow
 
-After the template is added, it appears in the **Workflow Templates** list as **mnc_livestock_report**. Click the card to open the workflow configuration form.
+Go back to **Workflow Templates**. The newly added template appears as the **mnc_livestock_report** card (showing the source repository URL). Click the card to open the workflow configuration form.
 
 ![Select Workflow Template](data/screenshots/select_workflow.png)
 
@@ -74,20 +75,20 @@ After the template is added, it appears in the **Workflow Templates** list as **
 
 ### Step 4 — Configure Workflow Details, Time Range, and EarthRanger Connection
 
-The configuration form has three sections on a single page.
+The configuration form is divided into three sections, each highlighted in the left-hand navigation panel.
 
 **Set workflow details**
 
 | Field | Description |
 |-------|-------------|
-| Workflow Name | A short name to identify this run |
-| Workflow Description | Optional notes (e.g. reporting month or site) |
+| Workflow Name | A short name to identify this run (required) |
+| Workflow Description | Optional notes to differentiate this run from others (e.g. reporting month or site) |
 
 **Time range**
 
 | Field | Description |
 |-------|-------------|
-| Timezone | Select the local timezone (e.g. `Africa/Nairobi UTC+03:00`) |
+| Timezone | Select the local timezone (e.g. `Africa/Nairobi (UTC+03:00)`) |
 | Since | Start date and time — all livestock events from this point are fetched |
 | Until | End date and time of the analysis window |
 
@@ -95,7 +96,7 @@ The configuration form has three sections on a single page.
 
 Select the EarthRanger data source configured in Step 2 from the **Data Source** dropdown (e.g. `Mara North Conservancy`).
 
-Once all three sections are filled, click **Submit**.
+Once all three sections are filled, click **Submit** to start the workflow.
 
 ![Configure Workflow Details, Time Range, and Connect to ER](data/screenshots/configure_workflow.png)
 
@@ -105,12 +106,12 @@ Once all three sections are filled, click **Submit**.
 
 Once submitted, the runner will:
 
-1. Download the MNC community conservancy boundary and parcels files from Dropbox and prepare all geospatial map layers (grazing zones, conservancy boundaries, parcels, and text labels).
+1. Download the MNC community conservancy boundary and parcels files from Dropbox and prepare all geospatial map layers (grazing zones, conservancy boundaries, parcels, and conservancy text labels).
 2. Fetch `mobile_boma_rep`, `cattle_count`, `livestock_predation_rep`, and `illegal_grazing_rep` events for the analysis period from EarthRanger; extract the date from each event's timestamp; add a temporal index.
-3. **Mobile Boma branch** — filter `mobile_boma_rep` events; process and flatten event details; retain key fields (date, location, zone, boma status, relocation reason); compute daily boma event counts with a grand total row; save as `mobile_boma_movement_summary_table.csv`; produce a point map saved as `boma_movement_map.html` and `.png`.
-4. **Cattle Count branch** — filter `cattle_count` events; process and flatten event details; retain cattle counts per zone (Zone 1, Zone 2/3, Zone 4) and total; save as `total_cattle_count_summary_table.csv`.
-5. **Livestock Predation branch** — filter `livestock_predation_rep` events; process and flatten event details; produce a point map saved as `livestock_predation_events.html` and `.png`; save a summary table with species, suspected predator, and animals affected as `livestock_predation_summary_table.csv`.
-6. **Illegal Grazing branch** — filter `illegal_grazing_rep` events; process and flatten event details; retain herd zone, landowner, and action taken; produce a point map saved as `illegal_grazing_map.html` and `.png`.
+3. **Mobile Boma branch** — filter `mobile_boma_rep` events; process and flatten event details; retain key fields (date, event type, location, boma zone, boma status, relocation date and reason); count unique boma events per day with a grand total row; save as `mobile_boma_movement_summary_table.csv`; produce a point map coloured by event type saved as `boma_movement_map.html` and `.png`.
+4. **Cattle Count branch** — filter `cattle_count` events; process and flatten event details; retain cattle counts per zone (Zone 1, Zone 2/3, Zone 4, and total); save as `total_cattle_count_summary_table.csv`.
+5. **Livestock Predation branch** — filter `livestock_predation_rep` events; process and flatten event details; produce a point map coloured by livestock species saved as `livestock_predation_events.html` and `.png`; count unique predation events per day with a grand total row and save as `total_livestock_predation_summary_table.csv`; produce a detailed summary with species, suspected predator (nulls and "Other" values replaced with Unknown), and animals affected saved as `livestock_predation_summary_table.csv`.
+6. **Illegal Grazing branch** — filter `illegal_grazing_rep` events; process and flatten event details; retain herd zone, landowner, and action taken; produce a point map coloured by event type saved as `illegal_grazing_map.html` and `.png`.
 7. Save all outputs to the directory specified by `ECOSCOPE_WORKFLOWS_RESULTS`.
 
 ---
@@ -123,14 +124,15 @@ All outputs are written to `$ECOSCOPE_WORKFLOWS_RESULTS/`.
 
 | File | Description |
 |------|-------------|
-| `mobile_boma_movement_summary_table.csv` | Daily boma event count (date, boma_events) with a grand Total row |
+| `mobile_boma_movement_summary_table.csv` | Daily unique boma event count (date, boma_events) with a grand Total row |
 | `total_cattle_count_summary_table.csv` | Cattle counts per date by zone (zone_1, zone_2_3, zone_4, total_count) |
-| `livestock_predation_summary_table.csv` | Predation records: date, livestock species, suspected predator, total animals affected |
+| `total_livestock_predation_summary_table.csv` | Daily unique predation event count (date, livestock_predation_events) with a grand Total row |
+| `livestock_predation_summary_table.csv` | Detailed predation records: date, livestock_species, suspected_predator, total_livestock_affected |
 
 ### Maps
 
 | File | Description |
 |------|-------------|
 | `boma_movement_map.html` / `.png` | Mobile boma locations on MNC grazing zones and parcels, coloured by event type |
-| `livestock_predation_events.html` / `.png` | Predation incident locations on conservancy boundaries, coloured by livestock species |
+| `livestock_predation_events.html` / `.png` | Predation incident locations on conservancy boundaries and parcels, coloured by livestock species |
 | `illegal_grazing_map.html` / `.png` | Illegal grazing locations on MNC grazing zones, coloured by event type |

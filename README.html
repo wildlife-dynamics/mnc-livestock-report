@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>MNC Livestock Report — User Guide</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 0 24px;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 2em;
+      border-bottom: 2px solid #2d6a4f;
+      padding-bottom: 10px;
+      color: #2d6a4f;
+    }
+    h2 {
+      font-size: 1.4em;
+      color: #2d6a4f;
+      margin-top: 2em;
+      border-bottom: 1px solid #b7e4c7;
+      padding-bottom: 4px;
+    }
+    h3 {
+      font-size: 1.1em;
+      color: #40916c;
+      margin-top: 1.5em;
+    }
+    h4 {
+      font-size: 1em;
+      color: #52b788;
+    }
+    img {
+      max-width: 100%;
+      border: 1px solid #d8e8d8;
+      border-radius: 6px;
+      margin: 16px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 0.9em;
+      overflow-x: auto;
+      border-left: 4px solid #52b788;
+    }
+    code {
+      background: #f0f7f0;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 16px 0;
+      font-size: 0.95em;
+    }
+    th {
+      background: #2d6a4f;
+      color: white;
+      padding: 10px 14px;
+      text-align: left;
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #d8e8d8;
+    }
+    tr:nth-child(even) td {
+      background: #f0f7f0;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #d8e8d8;
+      margin: 2em 0;
+    }
+    blockquote {
+      border-left: 4px solid #52b788;
+      margin: 1em 0;
+      padding: 8px 16px;
+      background: #f0f7f0;
+      color: #444;
+      border-radius: 0 4px 4px 0;
+    }
+    ul, ol {
+      padding-left: 1.5em;
+    }
+    li {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>MNC Livestock Report — User Guide</h1>
+
+<p>This guide walks you through configuring and running the MNC Livestock Report workflow, which processes mobile boma movement, cattle count, livestock predation, and illegal grazing events from EarthRanger to produce tabular CSV reports and interactive maps.</p>
+
+<hr />
+
+<h2>Overview</h2>
+
+<p>The workflow delivers, for each run:</p>
+
+<p><strong>CSV tables</strong></p>
+<ul>
+  <li><strong>mobile_boma_movement_summary_table.csv</strong> — daily count of unique mobile boma movement events with a grand total row</li>
+  <li><strong>total_cattle_count_summary_table.csv</strong> — cattle counts per grazing zone per date</li>
+  <li><strong>total_livestock_predation_summary_table.csv</strong> — daily count of unique livestock predation events with a grand total row</li>
+  <li><strong>livestock_predation_summary_table.csv</strong> — detailed predation records by species, suspected predator, and total animals affected</li>
+</ul>
+
+<p><strong>Maps (HTML + PNG)</strong></p>
+<ul>
+  <li><strong>boma_movement_map</strong> — point map of mobile boma locations on MNC grazing zones and parcels, coloured by event type</li>
+  <li><strong>livestock_predation_events</strong> — point map of predation incidents on conservancy boundaries and parcels, coloured by livestock species</li>
+  <li><strong>illegal_grazing_map</strong> — point map of illegal grazing incidents on MNC grazing zones, coloured by event type</li>
+</ul>
+
+<hr />
+
+<h2>Prerequisites</h2>
+
+<p>Before running the workflow, ensure you have:</p>
+<ul>
+  <li>Access to an <strong>EarthRanger</strong> instance with <code>mobile_boma_rep</code>, <code>cattle_count</code>, <code>livestock_predation_rep</code>, and <code>illegal_grazing_rep</code> events recorded for the analysis period</li>
+  <li>Network access to <strong>Dropbox</strong> so the workflow can download the MNC conservancy boundary and parcels files at runtime</li>
+</ul>
+
+<hr />
+
+<h2>Step-by-Step Configuration</h2>
+
+<h3>Step 1 — Add the Workflow Template</h3>
+
+<p>In the Ecoscope app, navigate to the <strong>Workflow Templates</strong> tab and click <strong>Add Workflow Template</strong> (top-right). In the <strong>Github Link</strong> field that appears, paste the repository URL:</p>
+
+<pre><code>https://github.com/wildlife-dynamics/mnc_livestock_report.git</code></pre>
+
+<p>Then click <strong>Add Template</strong> to register the template.</p>
+
+<img src="data/screenshots/add_workflow.png" alt="Add Workflow Template" />
+
+<hr />
+
+<h3>Step 2 — Configure the EarthRanger Connection</h3>
+
+<p>Navigate to <strong>Data Sources</strong> and click <strong>Connect</strong>. The <strong>Connect Ecoscope to EarthRanger</strong> dialog will open. Fill in the form:</p>
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Data Source Name</td><td>A label to identify this connection (e.g. <code>Mara North Conservancy</code>)</td></tr>
+    <tr><td>EarthRanger URL</td><td>Your instance URL (e.g. <code>your-site.pamdas.org</code>)</td></tr>
+    <tr><td>EarthRanger Username</td><td>Your EarthRanger username</td></tr>
+    <tr><td>EarthRanger Password</td><td>Your EarthRanger password</td></tr>
+  </tbody>
+</table>
+
+<blockquote>
+  <strong>Important:</strong> Credentials entered here are <strong>not</strong> validated during setup. Any authentication errors will only appear when the workflow runs.
+</blockquote>
+
+<p>Click <strong>Connect</strong> to save the data source.</p>
+
+<img src="data/screenshots/er_connection.png" alt="EarthRanger Connection" />
+
+<hr />
+
+<h3>Step 3 — Select the Workflow</h3>
+
+<p>Go back to <strong>Workflow Templates</strong>. The newly added template appears as the <strong>mnc_livestock_report</strong> card (showing the source repository URL). Click the card to open the workflow configuration form.</p>
+
+<img src="data/screenshots/select_workflow.png" alt="Select Workflow Template" />
+
+<hr />
+
+<h3>Step 4 — Configure Workflow Details, Time Range, and EarthRanger Connection</h3>
+
+<p>The configuration form is divided into three sections, each highlighted in the left-hand navigation panel.</p>
+
+<p><strong>Set workflow details</strong></p>
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Workflow Name</td><td>A short name to identify this run (required)</td></tr>
+    <tr><td>Workflow Description</td><td>Optional notes to differentiate this run from others (e.g. reporting month or site)</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Time range</strong></p>
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Timezone</td><td>Select the local timezone (e.g. <code>Africa/Nairobi (UTC+03:00)</code>)</td></tr>
+    <tr><td>Since</td><td>Start date and time — all livestock events from this point are fetched</td></tr>
+    <tr><td>Until</td><td>End date and time of the analysis window</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Connect to ER</strong></p>
+
+<p>Select the EarthRanger data source configured in Step 2 from the <strong>Data Source</strong> dropdown (e.g. <code>Mara North Conservancy</code>).</p>
+
+<p>Once all three sections are filled, click <strong>Submit</strong> to start the workflow.</p>
+
+<img src="data/screenshots/configure_workflow.png" alt="Configure Workflow Details, Time Range, and Connect to ER" />
+
+<hr />
+
+<h2>Running the Workflow</h2>
+
+<p>Once submitted, the runner will:</p>
+
+<ol>
+  <li>Download the MNC community conservancy boundary and parcels files from Dropbox and prepare all geospatial map layers (grazing zones, conservancy boundaries, parcels, and conservancy text labels).</li>
+  <li>Fetch <code>mobile_boma_rep</code>, <code>cattle_count</code>, <code>livestock_predation_rep</code>, and <code>illegal_grazing_rep</code> events for the analysis period from EarthRanger; extract the date from each event's timestamp; add a temporal index.</li>
+  <li><strong>Mobile Boma branch</strong> — filter <code>mobile_boma_rep</code> events; process and flatten event details; retain key fields (date, event type, location, boma zone, boma status, relocation date and reason); count unique boma events per day with a grand total row; save as <code>mobile_boma_movement_summary_table.csv</code>; produce a point map coloured by event type saved as <code>boma_movement_map.html</code> and <code>.png</code>.</li>
+  <li><strong>Cattle Count branch</strong> — filter <code>cattle_count</code> events; process and flatten event details; retain cattle counts per zone (Zone 1, Zone 2/3, Zone 4, and total); save as <code>total_cattle_count_summary_table.csv</code>.</li>
+  <li><strong>Livestock Predation branch</strong> — filter <code>livestock_predation_rep</code> events; process and flatten event details; produce a point map coloured by livestock species saved as <code>livestock_predation_events.html</code> and <code>.png</code>; count unique predation events per day with a grand total row and save as <code>total_livestock_predation_summary_table.csv</code>; produce a detailed summary with species, suspected predator (nulls and "Other" values replaced with Unknown), and animals affected saved as <code>livestock_predation_summary_table.csv</code>.</li>
+  <li><strong>Illegal Grazing branch</strong> — filter <code>illegal_grazing_rep</code> events; process and flatten event details; retain herd zone, landowner, and action taken; produce a point map coloured by event type saved as <code>illegal_grazing_map.html</code> and <code>.png</code>.</li>
+  <li>Save all outputs to the directory specified by <code>ECOSCOPE_WORKFLOWS_RESULTS</code>.</li>
+</ol>
+
+<hr />
+
+<h2>Output Files</h2>
+
+<p>All outputs are written to <code>$ECOSCOPE_WORKFLOWS_RESULTS/</code>.</p>
+
+<h3>CSV Tables</h3>
+
+<table>
+  <thead>
+    <tr><th>File</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>mobile_boma_movement_summary_table.csv</code></td>
+      <td>Daily unique boma event count (date, boma_events) with a grand Total row</td>
+    </tr>
+    <tr>
+      <td><code>total_cattle_count_summary_table.csv</code></td>
+      <td>Cattle counts per date by zone (zone_1, zone_2_3, zone_4, total_count)</td>
+    </tr>
+    <tr>
+      <td><code>total_livestock_predation_summary_table.csv</code></td>
+      <td>Daily unique predation event count (date, livestock_predation_events) with a grand Total row</td>
+    </tr>
+    <tr>
+      <td><code>livestock_predation_summary_table.csv</code></td>
+      <td>Detailed predation records: date, livestock_species, suspected_predator, total_livestock_affected</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Maps</h3>
+
+<table>
+  <thead>
+    <tr><th>File</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>boma_movement_map.html</code> / <code>.png</code></td>
+      <td>Mobile boma locations on MNC grazing zones and parcels, coloured by event type</td>
+    </tr>
+    <tr>
+      <td><code>livestock_predation_events.html</code> / <code>.png</code></td>
+      <td>Predation incident locations on conservancy boundaries and parcels, coloured by livestock species</td>
+    </tr>
+    <tr>
+      <td><code>illegal_grazing_map.html</code> / <code>.png</code></td>
+      <td>Illegal grazing locations on MNC grazing zones, coloured by event type</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>
