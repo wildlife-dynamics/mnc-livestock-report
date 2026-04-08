@@ -22,14 +22,21 @@ from ecoscope_workflows_core.tasks.transformation import (
     extract_column_as_type as extract_column_as_type,
 )
 from ecoscope_workflows_core.tasks.transformation import filter_df as filter_df
+from ecoscope_workflows_core.tasks.transformation import map_columns as map_columns
 from ecoscope_workflows_ext_custom.tasks.io import html_to_png as html_to_png
 from ecoscope_workflows_ext_custom.tasks.io import load_df as load_df
+from ecoscope_workflows_ext_custom.tasks.io import (
+    process_events_details as process_events_details,
+)
 from ecoscope_workflows_ext_custom.tasks.results import (
     create_scatterplot_layer as create_scatterplot_layer,
 )
 from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map
 from ecoscope_workflows_ext_custom.tasks.results import (
     set_base_maps_pydeck as set_base_maps_pydeck,
+)
+from ecoscope_workflows_ext_custom.tasks.transformation import (
+    drop_column_prefix as drop_column_prefix,
 )
 from ecoscope_workflows_ext_custom.tasks.transformation import (
     drop_null_geometry as drop_null_geometry,
@@ -51,15 +58,12 @@ from ecoscope_workflows_ext_mnc.tasks import (
 from ecoscope_workflows_ext_mnc.tasks import (
     exclude_geom_outliers as exclude_geom_outliers,
 )
-from ecoscope_workflows_ext_mnc.tasks import filter_columns as filter_columns
 from ecoscope_workflows_ext_mnc.tasks import map_column_values as map_column_values
 from ecoscope_workflows_ext_mnc.tasks import (
     replace_missing_with_label as replace_missing_with_label,
 )
-from ecoscope_workflows_ext_mnc.tasks import to_sentence_case as to_sentence_case
-from ecoscope_workflows_ext_mnc.tasks import transform_columns as transform_columns
 from ecoscope_workflows_ext_ste.tasks import (
-    annotate_gdf_dict_with_geom_type as annotate_gdf_dict_with_geom_type,
+    annotate_gdf_dict_with_geom_type as annotate_gdf_dict_with_geom_type_1,
 )
 from ecoscope_workflows_ext_ste.tasks import (
     combine_deckgl_map_layers as combine_deckgl_map_layers,
@@ -76,7 +80,7 @@ from ecoscope_workflows_ext_ste.tasks import (
 from ecoscope_workflows_ext_ste.tasks import (
     fetch_and_persist_file as fetch_and_persist_file,
 )
-from ecoscope_workflows_ext_ste.tasks import get_gdf_geom_type as get_gdf_geom_type
+from ecoscope_workflows_ext_ste.tasks import get_gdf_geom_type as get_gdf_geom_type_1
 from ecoscope_workflows_ext_ste.tasks import split_gdf_by_column as split_gdf_by_column
 from ecoscope_workflows_ext_ste.tasks import view_state_deck_gdf as view_state_deck_gdf
 
@@ -109,48 +113,50 @@ def main(params: Params):
         "extract_event_date": ["get_events_data"],
         "events_temporal": ["extract_event_date", "groupers"],
         "filter_mobile_boma": ["events_temporal"],
-        "filter_cattle_count": ["events_temporal"],
-        "normalize_mb_values": ["filter_mobile_boma"],
-        "normalize_cc_values": ["filter_cattle_count"],
-        "rename_mobile_boma": ["normalize_mb_values"],
-        "rename_cattle_count": ["normalize_cc_values"],
-        "rename_boma_values": ["rename_mobile_boma"],
-        "calculate_total_boma": ["rename_boma_values"],
-        "add_total_boma_row": ["calculate_total_boma"],
-        "persist_boma_count_df": ["add_total_boma_row"],
-        "filter_cattle_cols": ["rename_cattle_count"],
-        "persist_cattle_count_df": ["filter_cattle_cols"],
-        "exclude_mb_outliers": ["rename_boma_values"],
-        "remove_mb_invalid_geoms": ["exclude_mb_outliers"],
-        "apply_mb_colormap": ["remove_mb_invalid_geoms"],
-        "generate_mb_layers": ["apply_mb_colormap"],
+        "filter_livestock_predation": ["events_temporal"],
+        "filter_cattle_counts": ["events_temporal"],
+        "filter_illegal_grazing": ["events_temporal"],
+        "process_mobile_boma": ["filter_mobile_boma", "er_client_name"],
+        "normalize_mobile_boma": ["process_mobile_boma"],
+        "drop_mobile_prefix": ["normalize_mobile_boma"],
+        "process_livestock_preds": ["filter_livestock_predation", "er_client_name"],
+        "normalize_livestock_preds": ["process_livestock_preds"],
+        "drop_predation_prefix": ["normalize_livestock_preds"],
+        "process_cattle_counts": ["filter_cattle_counts", "er_client_name"],
+        "normalize_cattle_count": ["process_cattle_counts"],
+        "drop_cattle_prefix": ["normalize_cattle_count"],
+        "process_illegal_grazing": ["filter_illegal_grazing", "er_client_name"],
+        "normalize_illegal_grazing": ["process_illegal_grazing"],
+        "drop_illegal_prefix": ["normalize_illegal_grazing"],
+        "map_mobile_boma": ["drop_mobile_prefix"],
+        "summarize_mobile_boma": ["map_mobile_boma"],
+        "add_mobile_summary_row": ["summarize_mobile_boma"],
+        "persist_boma_summary": ["add_mobile_summary_row"],
+        "exclude_mobile_outliers": ["map_mobile_boma"],
+        "remove_mobile_invalids": ["exclude_mobile_outliers"],
+        "mobile_colormap": ["remove_mobile_invalids"],
+        "generate_mobile_layers": ["mobile_colormap"],
         "global_zoom_value": ["overall_grazing_zones"],
         "combine_custom_mobile_boma": [
             "create_mnc_styled_layers",
             "create_mnc_parcels_layers",
             "conservancy_text_layer",
-            "generate_mb_layers",
+            "generate_mobile_layers",
         ],
-        "draw_mb_map": [
+        "draw_mobile_boma": [
             "configure_base_maps",
             "combine_custom_mobile_boma",
             "global_zoom_value",
         ],
-        "persist_mobile_boma_urls": ["draw_mb_map"],
-        "filter_predation": ["events_temporal"],
-        "normalize_predation_values": ["filter_predation"],
-        "rename_livestock_predation": ["normalize_predation_values"],
-        "replace_livestock_nulls": ["rename_livestock_predation"],
-        "convert_livestock_int": ["replace_livestock_nulls"],
-        "livestock_preds_scase": ["convert_livestock_int"],
-        "persist_livestock_events_gpkg": ["livestock_preds_scase"],
-        "persist_livestock_events_csv": ["livestock_preds_scase"],
-        "livestock_predation_summary": ["livestock_preds_scase"],
-        "persist_livestock_df": ["livestock_predation_summary"],
-        "livestock_events_recorded": ["livestock_preds_scase"],
-        "add_total_livestock": ["livestock_events_recorded"],
-        "livestock_events_df": ["add_total_livestock"],
-        "exclude_livestock_outliers": ["livestock_preds_scase"],
+        "persist_mobile_boma_urls": ["draw_mobile_boma"],
+        "convert_mobile_boma_png": ["persist_mobile_boma_urls"],
+        "map_cattle_count": ["drop_cattle_prefix"],
+        "persist_cattle_count": ["map_cattle_count"],
+        "map_livestock_predation": ["drop_predation_prefix"],
+        "summarize_predation_events": ["map_livestock_predation"],
+        "add_predation_summary_row": ["summarize_predation_events"],
+        "persist_predation_summary": ["add_predation_summary_row"],
+        "exclude_livestock_outliers": ["map_livestock_predation"],
         "remove_livestock_invalid_geoms": ["exclude_livestock_outliers"],
         "apply_livestock_colormap": ["remove_livestock_invalid_geoms"],
         "generate_livestock_layers": ["apply_livestock_colormap"],
@@ -162,8 +168,29 @@ def main(params: Params):
         ],
         "draw_livestock_map": ["configure_base_maps", "combine_custom_livestock"],
         "persist_livestock_urls": ["draw_livestock_map"],
-        "convert_mobile_boma_png": ["persist_mobile_boma_urls"],
         "convert_livestock_png": ["persist_livestock_urls"],
+        "map_livestock_summary": ["map_livestock_predation"],
+        "replace_livestock_nulls": ["map_livestock_summary"],
+        "map_livestock_unknown": ["replace_livestock_nulls"],
+        "convert_livestock_int": ["map_livestock_unknown"],
+        "persist_livestock_summary": ["convert_livestock_int"],
+        "map_illegal_grazing": ["drop_illegal_prefix"],
+        "exclude_illegal_outliers": ["map_illegal_grazing"],
+        "remove_illegal_invalids": ["exclude_illegal_outliers"],
+        "illegal_colormap": ["remove_illegal_invalids"],
+        "generate_illegal_layers": ["illegal_colormap"],
+        "combine_custom_illegal": [
+            "create_mnc_styled_layers",
+            "conservancy_text_layer",
+            "generate_illegal_layers",
+        ],
+        "draw_illegal_grazing": [
+            "configure_base_maps",
+            "combine_custom_illegal",
+            "global_zoom_value",
+        ],
+        "persist_illegal_urls": ["draw_illegal_grazing"],
+        "convert_illegal_png": ["persist_illegal_urls"],
         "mnc_events_dashboard": ["workflow_details", "time_range", "groupers"],
     }
 
@@ -282,7 +309,7 @@ def main(params: Params):
             method="call",
         ),
         "annotate_comm_gdf_dict": Node(
-            async_task=annotate_gdf_dict_with_geom_type.validate()
+            async_task=annotate_gdf_dict_with_geom_type_1.validate()
             .set_task_instance_id("annotate_comm_gdf_dict")
             .handle_errors()
             .with_tracing()
@@ -561,7 +588,7 @@ def main(params: Params):
             method="call",
         ),
         "assign_mnc_geom": Node(
-            async_task=get_gdf_geom_type.validate()
+            async_task=get_gdf_geom_type_1.validate()
             .set_task_instance_id("assign_mnc_geom")
             .handle_errors()
             .with_tracing()
@@ -638,6 +665,12 @@ def main(params: Params):
                     "event_details",
                     "patrols",
                 ],
+                "event_types": [
+                    "mobile_boma_rep",
+                    "cattle_count",
+                    "livestock_predation_rep",
+                    "illegal_grazing_rep",
+                ],
                 "raise_on_empty": True,
                 "include_details": True,
                 "include_updates": False,
@@ -707,18 +740,18 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
+                "df": DependsOn("events_temporal"),
                 "column_name": "event_type",
                 "op": "equal",
                 "value": "mobile_boma_rep",
-                "df": DependsOn("events_temporal"),
-                "reset_index": False,
+                "reset_index": True,
             }
             | (params_dict.get("filter_mobile_boma") or {}),
             method="call",
         ),
-        "filter_cattle_count": Node(
+        "filter_livestock_predation": Node(
             async_task=filter_df.validate()
-            .set_task_instance_id("filter_cattle_count")
+            .set_task_instance_id("filter_livestock_predation")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -730,18 +763,64 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
+                "df": DependsOn("events_temporal"),
+                "column_name": "event_type",
+                "op": "equal",
+                "value": "livestock_predation_rep",
+                "reset_index": True,
+            }
+            | (params_dict.get("filter_livestock_predation") or {}),
+            method="call",
+        ),
+        "filter_cattle_counts": Node(
+            async_task=filter_df.validate()
+            .set_task_instance_id("filter_cattle_counts")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("events_temporal"),
                 "column_name": "event_type",
                 "op": "equal",
                 "value": "cattle_count",
+                "reset_index": True,
+            }
+            | (params_dict.get("filter_cattle_counts") or {}),
+            method="call",
+        ),
+        "filter_illegal_grazing": Node(
+            async_task=filter_df.validate()
+            .set_task_instance_id("filter_illegal_grazing")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
                 "df": DependsOn("events_temporal"),
-                "reset_index": False,
+                "column_name": "event_type",
+                "op": "equal",
+                "value": "illegal_grazing_rep",
+                "reset_index": True,
             }
-            | (params_dict.get("filter_cattle_count") or {}),
+            | (params_dict.get("filter_illegal_grazing") or {}),
             method="call",
         ),
-        "normalize_mb_values": Node(
-            async_task=normalize_json_column.validate()
-            .set_task_instance_id("normalize_mb_values")
+        "process_mobile_boma": Node(
+            async_task=process_events_details.validate()
+            .set_task_instance_id("process_mobile_boma")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -753,17 +832,17 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "column": "event_details",
                 "df": DependsOn("filter_mobile_boma"),
-                "skip_if_not_exists": True,
-                "sort_columns": True,
+                "client": DependsOn("er_client_name"),
+                "map_to_titles": True,
+                "ordered": True,
             }
-            | (params_dict.get("normalize_mb_values") or {}),
+            | (params_dict.get("process_mobile_boma") or {}),
             method="call",
         ),
-        "normalize_cc_values": Node(
+        "normalize_mobile_boma": Node(
             async_task=normalize_json_column.validate()
-            .set_task_instance_id("normalize_cc_values")
+            .set_task_instance_id("normalize_mobile_boma")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -775,17 +854,17 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
+                "df": DependsOn("process_mobile_boma"),
                 "column": "event_details",
-                "df": DependsOn("filter_cattle_count"),
                 "skip_if_not_exists": True,
                 "sort_columns": True,
             }
-            | (params_dict.get("normalize_cc_values") or {}),
+            | (params_dict.get("normalize_mobile_boma") or {}),
             method="call",
         ),
-        "rename_mobile_boma": Node(
-            async_task=transform_columns.validate()
-            .set_task_instance_id("rename_mobile_boma")
+        "drop_mobile_prefix": Node(
+            async_task=drop_column_prefix.validate()
+            .set_task_instance_id("drop_mobile_prefix")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -797,21 +876,16 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "rename_columns": {
-                    "event_details__mobile_boma": "boma",
-                },
-                "skip_missing_rename": True,
-                "required_columns": [
-                    "event_details__mobile_boma",
-                ],
-                "df": DependsOn("normalize_mb_values"),
+                "df": DependsOn("normalize_mobile_boma"),
+                "prefix": "event_details__",
+                "duplicate_strategy": "keep_original",
             }
-            | (params_dict.get("rename_mobile_boma") or {}),
+            | (params_dict.get("drop_mobile_prefix") or {}),
             method="call",
         ),
-        "rename_cattle_count": Node(
-            async_task=transform_columns.validate()
-            .set_task_instance_id("rename_cattle_count")
+        "process_livestock_preds": Node(
+            async_task=process_events_details.validate()
+            .set_task_instance_id("process_livestock_preds")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -823,24 +897,17 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "rename_columns": {
-                    "event_details__cattle_in_zone_4": "zone_4",
-                    "event_details__cattle_in_zone_1_outside_mobile_boma": "zone_1",
-                    "event_details__cattle_in_zone_23_outside_mobile_boma": "zone_2_3",
-                    "event_details__total_cattle_counted_from_all_zones": "total_count",
-                },
-                "skip_missing_rename": True,
-                "required_columns": [
-                    "event_details__total_cattle_counted_from_all_zones",
-                ],
-                "df": DependsOn("normalize_cc_values"),
+                "df": DependsOn("filter_livestock_predation"),
+                "client": DependsOn("er_client_name"),
+                "map_to_titles": True,
+                "ordered": True,
             }
-            | (params_dict.get("rename_cattle_count") or {}),
+            | (params_dict.get("process_livestock_preds") or {}),
             method="call",
         ),
-        "rename_boma_values": Node(
-            async_task=map_column_values.validate()
-            .set_task_instance_id("rename_boma_values")
+        "normalize_livestock_preds": Node(
+            async_task=normalize_json_column.validate()
+            .set_task_instance_id("normalize_livestock_preds")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -852,21 +919,199 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "df": DependsOn("rename_mobile_boma"),
-                "columns": [
+                "df": DependsOn("process_livestock_preds"),
+                "column": "event_details",
+                "skip_if_not_exists": True,
+                "sort_columns": True,
+            }
+            | (params_dict.get("normalize_livestock_preds") or {}),
+            method="call",
+        ),
+        "drop_predation_prefix": Node(
+            async_task=drop_column_prefix.validate()
+            .set_task_instance_id("drop_predation_prefix")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("normalize_livestock_preds"),
+                "prefix": "event_details__",
+                "duplicate_strategy": "keep_original",
+            }
+            | (params_dict.get("drop_predation_prefix") or {}),
+            method="call",
+        ),
+        "process_cattle_counts": Node(
+            async_task=process_events_details.validate()
+            .set_task_instance_id("process_cattle_counts")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("filter_cattle_counts"),
+                "client": DependsOn("er_client_name"),
+                "map_to_titles": True,
+                "ordered": True,
+            }
+            | (params_dict.get("process_cattle_counts") or {}),
+            method="call",
+        ),
+        "normalize_cattle_count": Node(
+            async_task=normalize_json_column.validate()
+            .set_task_instance_id("normalize_cattle_count")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("process_cattle_counts"),
+                "column": "event_details",
+                "skip_if_not_exists": True,
+                "sort_columns": True,
+            }
+            | (params_dict.get("normalize_cattle_count") or {}),
+            method="call",
+        ),
+        "drop_cattle_prefix": Node(
+            async_task=drop_column_prefix.validate()
+            .set_task_instance_id("drop_cattle_prefix")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("normalize_cattle_count"),
+                "prefix": "event_details__",
+                "duplicate_strategy": "keep_original",
+            }
+            | (params_dict.get("drop_cattle_prefix") or {}),
+            method="call",
+        ),
+        "process_illegal_grazing": Node(
+            async_task=process_events_details.validate()
+            .set_task_instance_id("process_illegal_grazing")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("filter_illegal_grazing"),
+                "client": DependsOn("er_client_name"),
+                "map_to_titles": True,
+                "ordered": True,
+            }
+            | (params_dict.get("process_illegal_grazing") or {}),
+            method="call",
+        ),
+        "normalize_illegal_grazing": Node(
+            async_task=normalize_json_column.validate()
+            .set_task_instance_id("normalize_illegal_grazing")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("process_illegal_grazing"),
+                "column": "event_details",
+                "skip_if_not_exists": True,
+                "sort_columns": True,
+            }
+            | (params_dict.get("normalize_illegal_grazing") or {}),
+            method="call",
+        ),
+        "drop_illegal_prefix": Node(
+            async_task=drop_column_prefix.validate()
+            .set_task_instance_id("drop_illegal_prefix")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("normalize_illegal_grazing"),
+                "prefix": "event_details__",
+                "duplicate_strategy": "keep_original",
+            }
+            | (params_dict.get("drop_illegal_prefix") or {}),
+            method="call",
+        ),
+        "map_mobile_boma": Node(
+            async_task=map_columns.validate()
+            .set_task_instance_id("map_mobile_boma")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("drop_mobile_prefix"),
+                "retain_columns": [
+                    "id",
+                    "date",
                     "event_type",
+                    "geometry",
+                    "Date of Relocation",
+                    "Electric Boma Status",
+                    "Mobile Boma Zone",
+                    "Nature of the Site",
+                    "Reason for relocation",
                 ],
-                "value_map": {
-                    "mobile_boma_rep": "Mobile boma",
-                },
-                "inplace": False,
+                "raise_if_not_found": False,
             }
-            | (params_dict.get("rename_boma_values") or {}),
+            | (params_dict.get("map_mobile_boma") or {}),
             method="call",
         ),
-        "calculate_total_boma": Node(
+        "summarize_mobile_boma": Node(
             async_task=summarize_df.validate()
-            .set_task_instance_id("calculate_total_boma")
+            .set_task_instance_id("summarize_mobile_boma")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -878,25 +1123,26 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
+                "df": DependsOn("map_mobile_boma"),
                 "groupby_cols": [
                     "date",
                 ],
                 "summary_params": [
                     {
-                        "display_name": "total_count",
+                        "display_name": "boma_events",
                         "aggregator": "nunique",
                         "column": "id",
+                        "decimal_places": 0,
                     },
                 ],
                 "reset_index": True,
-                "df": DependsOn("rename_boma_values"),
             }
-            | (params_dict.get("calculate_total_boma") or {}),
+            | (params_dict.get("summarize_mobile_boma") or {}),
             method="call",
         ),
-        "add_total_boma_row": Node(
+        "add_mobile_summary_row": Node(
             async_task=add_totals_row.validate()
-            .set_task_instance_id("add_total_boma_row")
+            .set_task_instance_id("add_mobile_summary_row")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -912,14 +1158,14 @@ def main(params: Params):
                     "date",
                 ],
                 "label": "Total",
-                "df": DependsOn("calculate_total_boma"),
+                "df": DependsOn("summarize_mobile_boma"),
             }
-            | (params_dict.get("add_total_boma_row") or {}),
+            | (params_dict.get("add_mobile_summary_row") or {}),
             method="call",
         ),
-        "persist_boma_count_df": Node(
+        "persist_boma_summary": Node(
             async_task=persist_df.validate()
-            .set_task_instance_id("persist_boma_count_df")
+            .set_task_instance_id("persist_boma_summary")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -933,63 +1179,15 @@ def main(params: Params):
             partial={
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
                 "filetype": "csv",
-                "df": DependsOn("add_total_boma_row"),
-                "filename": "total_boma_count_by_date",
+                "df": DependsOn("add_mobile_summary_row"),
+                "filename": "mobile_boma_movement_summary_table",
             }
-            | (params_dict.get("persist_boma_count_df") or {}),
+            | (params_dict.get("persist_boma_summary") or {}),
             method="call",
         ),
-        "filter_cattle_cols": Node(
-            async_task=filter_columns.validate()
-            .set_task_instance_id("filter_cattle_cols")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "df": DependsOn("rename_cattle_count"),
-                "columns": [
-                    "date",
-                    "zone_1",
-                    "zone_2_3",
-                    "zone_4",
-                    "total_count",
-                ],
-            }
-            | (params_dict.get("filter_cattle_cols") or {}),
-            method="call",
-        ),
-        "persist_cattle_count_df": Node(
-            async_task=persist_df.validate()
-            .set_task_instance_id("persist_cattle_count_df")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-                "filetype": "csv",
-                "filename": "mobile_boma_summary_table",
-                "df": DependsOn("filter_cattle_cols"),
-            }
-            | (params_dict.get("persist_cattle_count_df") or {}),
-            method="call",
-        ),
-        "exclude_mb_outliers": Node(
+        "exclude_mobile_outliers": Node(
             async_task=exclude_geom_outliers.validate()
-            .set_task_instance_id("exclude_mb_outliers")
+            .set_task_instance_id("exclude_mobile_outliers")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1001,15 +1199,15 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "df": DependsOn("rename_boma_values"),
+                "df": DependsOn("map_mobile_boma"),
                 "z_threshold": 3,
             }
-            | (params_dict.get("exclude_mb_outliers") or {}),
+            | (params_dict.get("exclude_mobile_outliers") or {}),
             method="call",
         ),
-        "remove_mb_invalid_geoms": Node(
+        "remove_mobile_invalids": Node(
             async_task=drop_null_geometry.validate()
-            .set_task_instance_id("remove_mb_invalid_geoms")
+            .set_task_instance_id("remove_mobile_invalids")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1021,15 +1219,15 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "gdf": DependsOn("exclude_mb_outliers"),
+                "gdf": DependsOn("exclude_mobile_outliers"),
                 "geometry_column": "geometry",
             }
-            | (params_dict.get("remove_mb_invalid_geoms") or {}),
+            | (params_dict.get("remove_mobile_invalids") or {}),
             method="call",
         ),
-        "apply_mb_colormap": Node(
+        "mobile_colormap": Node(
             async_task=apply_color_map.validate()
-            .set_task_instance_id("apply_mb_colormap")
+            .set_task_instance_id("mobile_colormap")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1044,14 +1242,14 @@ def main(params: Params):
                 "input_column_name": "event_type",
                 "output_column_name": "event_type_colors",
                 "colormap": "tab20",
-                "df": DependsOn("remove_mb_invalid_geoms"),
+                "df": DependsOn("remove_mobile_invalids"),
             }
-            | (params_dict.get("apply_mb_colormap") or {}),
+            | (params_dict.get("mobile_colormap") or {}),
             method="call",
         ),
-        "generate_mb_layers": Node(
+        "generate_mobile_layers": Node(
             async_task=create_scatterplot_layer.validate()
-            .set_task_instance_id("generate_mb_layers")
+            .set_task_instance_id("generate_mobile_layers")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1077,9 +1275,10 @@ def main(params: Params):
                     "sort": "ascending",
                     "label_suffix": None,
                 },
-                "geodataframe": DependsOn("apply_mb_colormap"),
+                "data_url": None,
+                "geodataframe": DependsOn("mobile_colormap"),
             }
-            | (params_dict.get("generate_mb_layers") or {}),
+            | (params_dict.get("generate_mobile_layers") or {}),
             method="call",
         ),
         "global_zoom_value": Node(
@@ -1122,14 +1321,14 @@ def main(params: Params):
                     DependsOn("create_mnc_parcels_layers"),
                     DependsOn("conservancy_text_layer"),
                 ],
-                "grouped_layers": DependsOn("generate_mb_layers"),
+                "grouped_layers": DependsOn("generate_mobile_layers"),
             }
             | (params_dict.get("combine_custom_mobile_boma") or {}),
             method="call",
         ),
-        "draw_mb_map": Node(
+        "draw_mobile_boma": Node(
             async_task=draw_map.validate()
-            .set_task_instance_id("draw_mb_map")
+            .set_task_instance_id("draw_mobile_boma")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1151,7 +1350,7 @@ def main(params: Params):
                 "geo_layers": DependsOn("combine_custom_mobile_boma"),
                 "view_state": DependsOn("global_zoom_value"),
             }
-            | (params_dict.get("draw_mb_map") or {}),
+            | (params_dict.get("draw_mobile_boma") or {}),
             method="call",
         ),
         "persist_mobile_boma_urls": Node(
@@ -1169,15 +1368,15 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-                "text": DependsOn("draw_mb_map"),
+                "text": DependsOn("draw_mobile_boma"),
                 "filename": "boma_movement_map.html",
             }
             | (params_dict.get("persist_mobile_boma_urls") or {}),
             method="call",
         ),
-        "filter_predation": Node(
-            async_task=filter_df.validate()
-            .set_task_instance_id("filter_predation")
+        "convert_mobile_boma_png": Node(
+            async_task=html_to_png.validate()
+            .set_task_instance_id("convert_mobile_boma_png")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1189,87 +1388,21 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "column_name": "event_type",
-                "op": "equal",
-                "value": "livestock_predation_rep",
-                "df": DependsOn("events_temporal"),
-                "reset_index": False,
-            }
-            | (params_dict.get("filter_predation") or {}),
-            method="call",
-        ),
-        "normalize_predation_values": Node(
-            async_task=normalize_json_column.validate()
-            .set_task_instance_id("normalize_predation_values")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "column": "event_details",
-                "df": DependsOn("filter_predation"),
-                "skip_if_not_exists": True,
-                "sort_columns": True,
-            }
-            | (params_dict.get("normalize_predation_values") or {}),
-            method="call",
-        ),
-        "rename_livestock_predation": Node(
-            async_task=transform_columns.validate()
-            .set_task_instance_id("rename_livestock_predation")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "rename_columns": {
-                    "event_details__livestockpredation_comments": "livestock_predation_comments",
-                    "event_details__livestockpredation_location": "predation_location",
-                    "event_details__livestockpredation_causedeath": "predation_cause_of_death",
-                    "event_details__livestockpredation_retaliation": "predation_retaliation",
-                    "event_details__livestockpredation_supervision": "predation_supervision",
-                    "event_details__livestockpredation_predatorcount": "predator_count",
-                    "event_details__livestockpredation_killedjuvenile": "killed_juvenile",
-                    "event_details__livestockpredation_livestockowner": "livestock_owner",
-                    "event_details__livestockpredation_distancetopeople": "distance_to_people",
-                    "event_details__livestockpredation_livestockspecies": "livestock_species",
-                    "event_details__livestockpredation_livestockaffected": "livestock_affected",
-                    "event_details__livestockpredation_suspectedpredator": "suspected_predator",
-                    "event_details__livestockpredation_bomacontext": "boma_context",
-                    "event_details__livestockpredation_killedadultmale": "killed_adult_male",
-                    "event_details__livestockpredation_bomaconstruction": "boma_construction",
-                    "event_details__livestockpredation_woundedjuvenile": "wounded_juvenile",
-                    "event_details__livestockpredation_woundedadultfemale": "wounded_adult_female",
-                    "event_details__livestockpredation_woundedadultmale": "wounded_adult_male",
-                    "event_details__livestockpredation_bomaheight": "boma_height",
-                    "event_details__livestockpredation_bomavisibility": "boma_visibility",
+                "output_dir": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "html_path": DependsOn("persist_mobile_boma_urls"),
+                "config": {
+                    "full_page": False,
+                    "device_scale_factor": 2.0,
+                    "wait_for_timeout": 40000,
+                    "max_concurrent_pages": 1,
                 },
-                "skip_missing_rename": True,
-                "required_columns": [
-                    "event_details__livestockpredation_livestockaffected",
-                    "event_details__livestockpredation_livestockspecies",
-                    "event_details__livestockpredation_suspectedpredator",
-                ],
-                "df": DependsOn("normalize_predation_values"),
             }
-            | (params_dict.get("rename_livestock_predation") or {}),
+            | (params_dict.get("convert_mobile_boma_png") or {}),
             method="call",
         ),
-        "replace_livestock_nulls": Node(
-            async_task=replace_missing_with_label.validate()
-            .set_task_instance_id("replace_livestock_nulls")
+        "map_cattle_count": Node(
+            async_task=map_columns.validate()
+            .set_task_instance_id("map_cattle_count")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1281,89 +1414,28 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "df": DependsOn("rename_livestock_predation"),
-                "columns": [
-                    "suspected_predator",
-                    "livestock_species",
+                "df": DependsOn("drop_cattle_prefix"),
+                "retain_columns": [
+                    "date",
+                    "# cattle in Zone 1 mobile boma",
+                    "# cattle in Zone 2/3 mobile boma",
+                    "# cattle in Zone 4",
+                    "total_cattle_counted_from_all_zones",
                 ],
-                "label": "unknown",
+                "rename_columns": {
+                    "# cattle in Zone 1 mobile boma": "zone_1",
+                    "# cattle in Zone 2/3 mobile boma": "zone_2_3",
+                    "# cattle in Zone 4": "zone_4",
+                    "total_cattle_counted_from_all_zones": "total_count",
+                },
+                "raise_if_not_found": False,
             }
-            | (params_dict.get("replace_livestock_nulls") or {}),
+            | (params_dict.get("map_cattle_count") or {}),
             method="call",
         ),
-        "convert_livestock_int": Node(
-            async_task=convert_to_int.validate()
-            .set_task_instance_id("convert_livestock_int")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "df": DependsOn("replace_livestock_nulls"),
-                "columns": [
-                    "livestock_affected",
-                ],
-                "errors": "coerce",
-                "fill_value": 0,
-                "inplace": False,
-            }
-            | (params_dict.get("convert_livestock_int") or {}),
-            method="call",
-        ),
-        "livestock_preds_scase": Node(
-            async_task=to_sentence_case.validate()
-            .set_task_instance_id("livestock_preds_scase")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "df": DependsOn("convert_livestock_int"),
-                "columns": [
-                    "suspected_predator",
-                    "livestock_species",
-                ],
-            }
-            | (params_dict.get("livestock_preds_scase") or {}),
-            method="call",
-        ),
-        "persist_livestock_events_gpkg": Node(
+        "persist_cattle_count": Node(
             async_task=persist_df.validate()
-            .set_task_instance_id("persist_livestock_events_gpkg")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-                "filetype": "gpkg",
-                "filename": "livestock_predation_events",
-                "df": DependsOn("livestock_preds_scase"),
-            }
-            | (params_dict.get("persist_livestock_events_gpkg") or {}),
-            method="call",
-        ),
-        "persist_livestock_events_csv": Node(
-            async_task=persist_df.validate()
-            .set_task_instance_id("persist_livestock_events_csv")
+            .set_task_instance_id("persist_cattle_count")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1377,15 +1449,15 @@ def main(params: Params):
             partial={
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
                 "filetype": "csv",
-                "filename": "livestock_predation_events",
-                "df": DependsOn("livestock_preds_scase"),
+                "df": DependsOn("map_cattle_count"),
+                "filename": "total_cattle_count_summary_table",
             }
-            | (params_dict.get("persist_livestock_events_csv") or {}),
+            | (params_dict.get("persist_cattle_count") or {}),
             method="call",
         ),
-        "livestock_predation_summary": Node(
-            async_task=summarize_df.validate()
-            .set_task_instance_id("livestock_predation_summary")
+        "map_livestock_predation": Node(
+            async_task=map_columns.validate()
+            .set_task_instance_id("map_livestock_predation")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1397,49 +1469,24 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "groupby_cols": [
+                "df": DependsOn("drop_predation_prefix"),
+                "retain_columns": [
+                    "id",
                     "date",
-                    "suspected_predator",
-                    "livestock_species",
+                    "event_type",
+                    "geometry",
+                    "Livestock Species",
+                    "Suspected Predator",
+                    "Total livestock affected",
                 ],
-                "summary_params": [
-                    {
-                        "display_name": "no_affected",
-                        "aggregator": "sum",
-                        "column": "livestock_affected",
-                    },
-                ],
-                "reset_index": True,
-                "df": DependsOn("livestock_preds_scase"),
+                "raise_if_not_found": False,
             }
-            | (params_dict.get("livestock_predation_summary") or {}),
+            | (params_dict.get("map_livestock_predation") or {}),
             method="call",
         ),
-        "persist_livestock_df": Node(
-            async_task=persist_df.validate()
-            .set_task_instance_id("persist_livestock_df")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-                "filetype": "csv",
-                "filename": "livestock_predation_summary_table",
-                "df": DependsOn("livestock_predation_summary"),
-            }
-            | (params_dict.get("persist_livestock_df") or {}),
-            method="call",
-        ),
-        "livestock_events_recorded": Node(
+        "summarize_predation_events": Node(
             async_task=summarize_df.validate()
-            .set_task_instance_id("livestock_events_recorded")
+            .set_task_instance_id("summarize_predation_events")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1451,25 +1498,26 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
+                "df": DependsOn("map_livestock_predation"),
                 "groupby_cols": [
                     "date",
                 ],
                 "summary_params": [
                     {
-                        "display_name": "no_of_events",
+                        "display_name": "livestock_predation_events",
                         "aggregator": "nunique",
                         "column": "id",
+                        "decimal_places": 0,
                     },
                 ],
                 "reset_index": True,
-                "df": DependsOn("livestock_preds_scase"),
             }
-            | (params_dict.get("livestock_events_recorded") or {}),
+            | (params_dict.get("summarize_predation_events") or {}),
             method="call",
         ),
-        "add_total_livestock": Node(
+        "add_predation_summary_row": Node(
             async_task=add_totals_row.validate()
-            .set_task_instance_id("add_total_livestock")
+            .set_task_instance_id("add_predation_summary_row")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1485,14 +1533,14 @@ def main(params: Params):
                     "date",
                 ],
                 "label": "Total",
-                "df": DependsOn("livestock_events_recorded"),
+                "df": DependsOn("summarize_predation_events"),
             }
-            | (params_dict.get("add_total_livestock") or {}),
+            | (params_dict.get("add_predation_summary_row") or {}),
             method="call",
         ),
-        "livestock_events_df": Node(
+        "persist_predation_summary": Node(
             async_task=persist_df.validate()
-            .set_task_instance_id("livestock_events_df")
+            .set_task_instance_id("persist_predation_summary")
             .handle_errors()
             .with_tracing()
             .skipif(
@@ -1506,10 +1554,10 @@ def main(params: Params):
             partial={
                 "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
                 "filetype": "csv",
-                "df": DependsOn("add_total_livestock"),
-                "filename": "livestock_events_recorded_by_date",
+                "df": DependsOn("add_predation_summary_row"),
+                "filename": "total_livestock_predation_summary_table",
             }
-            | (params_dict.get("livestock_events_df") or {}),
+            | (params_dict.get("persist_predation_summary") or {}),
             method="call",
         ),
         "exclude_livestock_outliers": Node(
@@ -1526,7 +1574,7 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "df": DependsOn("livestock_preds_scase"),
+                "df": DependsOn("map_livestock_predation"),
                 "z_threshold": 3,
             }
             | (params_dict.get("exclude_livestock_outliers") or {}),
@@ -1566,7 +1614,7 @@ def main(params: Params):
             )
             .set_executor("lithops"),
             partial={
-                "input_column_name": "livestock_species",
+                "input_column_name": "Livestock Species",
                 "output_column_name": "colors",
                 "colormap": "tab20",
                 "df": DependsOn("remove_livestock_invalid_geoms"),
@@ -1597,11 +1645,12 @@ def main(params: Params):
                 },
                 "legend": {
                     "title": "Livestock Species",
-                    "label_column": "livestock_species",
+                    "label_column": "Livestock Species",
                     "color_column": "colors",
                     "sort": "ascending",
                     "label_suffix": None,
                 },
+                "data_url": None,
                 "geodataframe": DependsOn("apply_livestock_colormap"),
             }
             | (params_dict.get("generate_livestock_layers") or {}),
@@ -1685,32 +1734,6 @@ def main(params: Params):
             | (params_dict.get("persist_livestock_urls") or {}),
             method="call",
         ),
-        "convert_mobile_boma_png": Node(
-            async_task=html_to_png.validate()
-            .set_task_instance_id("convert_mobile_boma_png")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "output_dir": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
-                "html_path": DependsOn("persist_mobile_boma_urls"),
-                "config": {
-                    "full_page": False,
-                    "device_scale_factor": 2.0,
-                    "wait_for_timeout": 40000,
-                    "max_concurrent_pages": 1,
-                },
-            }
-            | (params_dict.get("convert_mobile_boma_png") or {}),
-            method="call",
-        ),
         "convert_livestock_png": Node(
             async_task=html_to_png.validate()
             .set_task_instance_id("convert_livestock_png")
@@ -1735,6 +1758,355 @@ def main(params: Params):
                 },
             }
             | (params_dict.get("convert_livestock_png") or {}),
+            method="call",
+        ),
+        "map_livestock_summary": Node(
+            async_task=map_columns.validate()
+            .set_task_instance_id("map_livestock_summary")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("map_livestock_predation"),
+                "retain_columns": [
+                    "date",
+                    "Livestock Species",
+                    "Suspected Predator",
+                    "Total livestock affected",
+                ],
+                "rename_columns": {
+                    "Livestock Species": "livestock_species",
+                    "Suspected Predator": "suspected_predator",
+                    "Total livestock affected": "total_livestock_affected",
+                },
+                "raise_if_not_found": False,
+            }
+            | (params_dict.get("map_livestock_summary") or {}),
+            method="call",
+        ),
+        "replace_livestock_nulls": Node(
+            async_task=replace_missing_with_label.validate()
+            .set_task_instance_id("replace_livestock_nulls")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("map_livestock_summary"),
+                "columns": [
+                    "suspected_predator",
+                    "livestock_species",
+                ],
+                "label": "Unknown",
+            }
+            | (params_dict.get("replace_livestock_nulls") or {}),
+            method="call",
+        ),
+        "map_livestock_unknown": Node(
+            async_task=map_column_values.validate()
+            .set_task_instance_id("map_livestock_unknown")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("replace_livestock_nulls"),
+                "columns": [
+                    "suspected_predator",
+                ],
+                "value_map": {
+                    "Other (specify in comments)": "Unknown",
+                },
+                "inplace": True,
+            }
+            | (params_dict.get("map_livestock_unknown") or {}),
+            method="call",
+        ),
+        "convert_livestock_int": Node(
+            async_task=convert_to_int.validate()
+            .set_task_instance_id("convert_livestock_int")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("map_livestock_unknown"),
+                "columns": [
+                    "total_livestock_affected",
+                ],
+                "errors": "coerce",
+                "fill_value": 0,
+                "inplace": False,
+            }
+            | (params_dict.get("convert_livestock_int") or {}),
+            method="call",
+        ),
+        "persist_livestock_summary": Node(
+            async_task=persist_df.validate()
+            .set_task_instance_id("persist_livestock_summary")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "filetype": "csv",
+                "filename": "livestock_predation_summary_table",
+                "df": DependsOn("convert_livestock_int"),
+            }
+            | (params_dict.get("persist_livestock_summary") or {}),
+            method="call",
+        ),
+        "map_illegal_grazing": Node(
+            async_task=map_columns.validate()
+            .set_task_instance_id("map_illegal_grazing")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("drop_illegal_prefix"),
+                "retain_columns": [
+                    "date",
+                    "event_type",
+                    "geometry",
+                    "Herd Zone",
+                    "Landowner name",
+                    "action taken",
+                ],
+                "raise_if_not_found": False,
+            }
+            | (params_dict.get("map_illegal_grazing") or {}),
+            method="call",
+        ),
+        "exclude_illegal_outliers": Node(
+            async_task=exclude_geom_outliers.validate()
+            .set_task_instance_id("exclude_illegal_outliers")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "df": DependsOn("map_illegal_grazing"),
+                "z_threshold": 3,
+            }
+            | (params_dict.get("exclude_illegal_outliers") or {}),
+            method="call",
+        ),
+        "remove_illegal_invalids": Node(
+            async_task=drop_null_geometry.validate()
+            .set_task_instance_id("remove_illegal_invalids")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "gdf": DependsOn("exclude_illegal_outliers"),
+                "geometry_column": "geometry",
+            }
+            | (params_dict.get("remove_illegal_invalids") or {}),
+            method="call",
+        ),
+        "illegal_colormap": Node(
+            async_task=apply_color_map.validate()
+            .set_task_instance_id("illegal_colormap")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "input_column_name": "event_type",
+                "output_column_name": "event_type_colors",
+                "colormap": "tab20",
+                "df": DependsOn("remove_illegal_invalids"),
+            }
+            | (params_dict.get("illegal_colormap") or {}),
+            method="call",
+        ),
+        "generate_illegal_layers": Node(
+            async_task=create_scatterplot_layer.validate()
+            .set_task_instance_id("generate_illegal_layers")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "layer_style": {
+                    "get_fill_color": "event_type_colors",
+                    "get_line_color": "event_type_colors",
+                    "get_radius": 4,
+                    "opacity": 0.75,
+                    "stroked": True,
+                },
+                "legend": {
+                    "title": "Illegal grazing",
+                    "label_column": "event_type",
+                    "color_column": "event_type_colors",
+                    "sort": "ascending",
+                    "label_suffix": None,
+                },
+                "data_url": None,
+                "geodataframe": DependsOn("illegal_colormap"),
+            }
+            | (params_dict.get("generate_illegal_layers") or {}),
+            method="call",
+        ),
+        "combine_custom_illegal": Node(
+            async_task=combine_deckgl_map_layers.validate()
+            .set_task_instance_id("combine_custom_illegal")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "static_layers": [
+                    DependsOn("create_mnc_styled_layers"),
+                    DependsOn("conservancy_text_layer"),
+                ],
+                "grouped_layers": DependsOn("generate_illegal_layers"),
+            }
+            | (params_dict.get("combine_custom_illegal") or {}),
+            method="call",
+        ),
+        "draw_illegal_grazing": Node(
+            async_task=draw_map.validate()
+            .set_task_instance_id("draw_illegal_grazing")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "tile_layers": DependsOn("configure_base_maps"),
+                "static": False,
+                "title": None,
+                "max_zoom": 10,
+                "legend_style": {
+                    "placement": "bottom-right",
+                },
+                "geo_layers": DependsOn("combine_custom_illegal"),
+                "view_state": DependsOn("global_zoom_value"),
+            }
+            | (params_dict.get("draw_illegal_grazing") or {}),
+            method="call",
+        ),
+        "persist_illegal_urls": Node(
+            async_task=persist_text.validate()
+            .set_task_instance_id("persist_illegal_urls")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "root_path": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "text": DependsOn("draw_illegal_grazing"),
+                "filename": "illegal_grazing_map.html",
+            }
+            | (params_dict.get("persist_illegal_urls") or {}),
+            method="call",
+        ),
+        "convert_illegal_png": Node(
+            async_task=html_to_png.validate()
+            .set_task_instance_id("convert_illegal_png")
+            .handle_errors()
+            .with_tracing()
+            .skipif(
+                conditions=[
+                    any_is_empty_df,
+                    any_dependency_skipped,
+                ],
+                unpack_depth=1,
+            )
+            .set_executor("lithops"),
+            partial={
+                "output_dir": os.environ["ECOSCOPE_WORKFLOWS_RESULTS"],
+                "html_path": DependsOn("persist_illegal_urls"),
+                "config": {
+                    "full_page": False,
+                    "device_scale_factor": 2.0,
+                    "wait_for_timeout": 40000,
+                    "max_concurrent_pages": 1,
+                },
+            }
+            | (params_dict.get("convert_illegal_png") or {}),
             method="call",
         ),
         "mnc_events_dashboard": Node(
