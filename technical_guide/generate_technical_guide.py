@@ -590,7 +590,28 @@ story += [
          "It also uses the conservancy-boundaries-only layer set (no coloured "
          "grazing zones) to keep the focus on predation incident locations."),
     sp(6),
-    h2("7.4  Summary table"),
+    h2("7.4  Summary tables"),
+    p("The livestock predation branch produces two independent CSVs from the "
+      "same normalised DataFrame."),
+    h3("7.4a  total_livestock_predation_summary_table.csv"),
+    make_table(
+        [
+            ["Step", "Task", "Detail"],
+            ["1", "summarize_df",
+             "Group by <b>date</b>; compute <b>nunique(id)</b> displayed as "
+             "<b>livestock_predation_events</b> (decimal_places: 0). "
+             "reset_index: true."],
+            ["2", "add_totals_row",
+             "Append a grand <b>Total</b> row summing the "
+             "livestock_predation_events column "
+             "(label_col: date, label: 'Total')."],
+            ["3", "persist_df",
+             "Save as <b>total_livestock_predation_summary_table.csv</b>."],
+        ],
+        [1.2*cm, 4.5*cm, W - 5.7*cm],
+    ),
+    sp(6),
+    h3("7.4b  livestock_predation_summary_table.csv"),
     make_table(
         [
             ["Step", "Task", "Detail"],
@@ -604,10 +625,13 @@ story += [
             ["2", "replace_missing_with_label",
              "Replace nulls in <b>suspected_predator</b> and "
              "<b>livestock_species</b> with the label <b>'Unknown'</b>."],
-            ["3", "convert_to_int",
+            ["3", "map_column_values",
+             "Map <b>'Other (specify in comments)'</b> → <b>'Unknown'</b> "
+             "in the <b>suspected_predator</b> column (inplace: true)."],
+            ["4", "convert_to_int",
              "Cast <b>total_livestock_affected</b> to integer "
              "(errors: coerce, fill_value: 0, inplace: false)."],
-            ["4", "persist_df",
+            ["5", "persist_df",
              "Save as <b>livestock_predation_summary_table.csv</b>."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
@@ -634,12 +658,12 @@ story += [
     make_table(
         [
             ["Column retained", "Notes"],
-            ["date",                "Event date"],
-            ["event_type_display",  "Display label for the event type; used for colouring map points"],
-            ["geometry",            "Used for the map"],
-            ["Herd Zone",           "Event detail field (title)"],
-            ["Landowner name",      "Event detail field (title)"],
-            ["action taken",        "Event detail field (title)"],
+            ["date",          "Event date"],
+            ["event_type",    "Event type identifier; used for colouring map points"],
+            ["geometry",      "Used for the map"],
+            ["Herd Zone",     "Event detail field (title)"],
+            ["Landowner name","Event detail field (title)"],
+            ["action taken",  "Event detail field (title)"],
         ],
         [5*cm, W - 5*cm],
     ),
@@ -653,11 +677,11 @@ story += [
             ["2", "drop_null_geometry",
              "Drop rows with null geometry."],
             ["3", "apply_color_map",
-             "Colour points by <b>event_type_display</b> using the <b>tab20</b> "
+             "Colour points by <b>event_type</b> using the <b>tab20</b> "
              "colormap → output column <b>event_type_colors</b>."],
             ["4", "create_scatterplot_layer",
              "Render points: get_radius: 4, opacity: 0.75, stroked: true. "
-             "Legend title: 'Illegal grazing', label from event_type_display."],
+             "Legend title: 'Illegal grazing', label from event_type."],
             ["5", "combine_deckgl_map_layers",
              "Static layers: create_mnc_styled_layers, conservancy_text_layer. "
              "Grouped: illegal grazing point layer. "
@@ -694,6 +718,10 @@ story += [
              "Cattle Count",
              "date, zone_1, zone_2_3, zone_4, total_count",
              "Cattle counts per zone per date"],
+            ["total_livestock_predation_summary_table.csv",
+             "Livestock Predation",
+             "date, livestock_predation_events",
+             "Daily unique predation event count with a grand Total row"],
             ["livestock_predation_summary_table.csv",
              "Livestock Predation",
              "date, livestock_species, suspected_predator, total_livestock_affected",
@@ -716,7 +744,7 @@ story += [
              "Conservancy boundaries, parcels, conservancy labels"],
             ["illegal_grazing_map.html / .png",
              "Illegal Grazing",
-             "event_type_display",
+             "event_type",
              "MNC grazing zones, conservancy labels (no parcels)"],
         ],
         [5*cm, 3*cm, 3.5*cm, W - 11.5*cm],
