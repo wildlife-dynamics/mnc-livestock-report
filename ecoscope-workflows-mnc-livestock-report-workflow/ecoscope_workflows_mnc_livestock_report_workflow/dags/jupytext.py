@@ -45,10 +45,13 @@ from ecoscope_workflows_ext_custom.tasks.results import (
     set_base_maps_pydeck as set_base_maps_pydeck,
 )
 from ecoscope_workflows_ext_custom.tasks.transformation import (
+    coerce_columns_to_int as coerce_columns_to_int,
+)
+from ecoscope_workflows_ext_custom.tasks.transformation import (
     drop_column_prefix as drop_column_prefix,
 )
 from ecoscope_workflows_ext_custom.tasks.transformation import (
-    drop_null_geometry as drop_null_geometry,
+    replace_empty_strings_in_columns as replace_empty_strings_in_columns,
 )
 from ecoscope_workflows_ext_ecoscope.tasks.analysis import summarize_df as summarize_df
 from ecoscope_workflows_ext_ecoscope.tasks.io import get_events as get_events
@@ -60,17 +63,10 @@ from ecoscope_workflows_ext_ecoscope.tasks.transformation import (
     normalize_json_column as normalize_json_column,
 )
 from ecoscope_workflows_ext_mnc.tasks import add_totals_row as add_totals_row
-from ecoscope_workflows_ext_mnc.tasks import convert_to_int as convert_to_int
 from ecoscope_workflows_ext_mnc.tasks import (
     create_gdf_from_dict as create_gdf_from_dict,
 )
-from ecoscope_workflows_ext_mnc.tasks import (
-    exclude_geom_outliers as exclude_geom_outliers,
-)
 from ecoscope_workflows_ext_mnc.tasks import map_column_values as map_column_values
-from ecoscope_workflows_ext_mnc.tasks import (
-    replace_missing_with_label as replace_missing_with_label,
-)
 from ecoscope_workflows_ext_ste.tasks import (
     annotate_gdf_dict_with_geom_type as annotate_gdf_dict_with_geom_type_1,
 )
@@ -208,9 +204,14 @@ configure_base_maps = (
         base_maps=[
             {
                 "url": "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-                "opacity": 1,
+                "opacity": 0.8,
                 "max_zoom": 20,
-            }
+            },
+            {
+                "url": "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}",
+                "opacity": 0.35,
+                "max_zoom": 20,
+            },
         ],
         **configure_base_maps_params,
     )
@@ -363,63 +364,63 @@ create_mnc_styled_layers = (
         styles={
             "Conservancy": {
                 "extruded": False,
-                "get_fill_color": [169, 169, 169],
-                "get_line_color": [169, 169, 169],
-                "get_line_width": 4.0,
+                "get_fill_color": [119, 136, 153],
+                "get_line_color": [119, 136, 153],
+                "get_line_width": 1.55,
                 "stroked": True,
                 "filled": False,
-                "opacity": 0.95,
+                "opacity": 0.7,
             },
             "Conservancy Herd Zone": {
                 "extruded": False,
                 "get_fill_color": [173, 255, 47],
                 "get_line_color": [173, 255, 47],
-                "get_line_width": 1.95,
+                "get_line_width": 1.25,
                 "stroked": True,
                 "filled": True,
-                "opacity": 0.15,
+                "opacity": 0.1,
             },
             "Grazing Zone 1": {
                 "extruded": False,
                 "get_fill_color": [85, 107, 47],
                 "get_line_color": [85, 107, 47],
-                "get_line_width": 1.95,
+                "get_line_width": 1.25,
                 "stroked": True,
                 "filled": True,
-                "opacity": 0.15,
+                "opacity": 0.1,
             },
             "Grazing Zone 2": {
                 "extruded": False,
                 "get_fill_color": [0, 139, 139],
                 "get_line_color": [0, 139, 139],
-                "get_line_width": 1.95,
+                "get_line_width": 1.25,
                 "stroked": True,
                 "filled": True,
-                "opacity": 0.15,
+                "opacity": 0.1,
             },
             "Grazing Zone 3": {
                 "extruded": False,
                 "get_fill_color": [0, 100, 0],
                 "get_line_color": [0, 100, 0],
-                "get_line_width": 1.95,
+                "get_line_width": 1.25,
                 "stroked": True,
                 "filled": True,
-                "opacity": 0.15,
+                "opacity": 0.1,
             },
             "Grazing Zone 4": {
                 "extruded": False,
                 "get_fill_color": [143, 188, 139],
                 "get_line_color": [143, 188, 139],
-                "get_line_width": 1.95,
+                "get_line_width": 1.25,
                 "stroked": True,
                 "filled": True,
-                "opacity": 0.15,
+                "opacity": 0.7,
             },
         },
         legends={
             "title": "Legend",
             "values": [
-                {"label": "Conservancy", "color": "#a9a9a9"},
+                {"label": "Conservancy Boundaries", "color": "#778899"},
                 {"label": "Conservancy Herd Zone", "color": "#adff2f"},
                 {"label": "Grazing Zone 1", "color": "#556b2f"},
                 {"label": "Grazing Zone 2", "color": "#008b8b"},
@@ -456,17 +457,17 @@ create_conservancy_boundaries = (
         styles={
             "Conservancy": {
                 "extruded": False,
-                "get_fill_color": [169, 169, 169],
-                "get_line_color": [169, 169, 169],
-                "get_line_width": 4.0,
+                "get_fill_color": [119, 136, 153],
+                "get_line_color": [119, 136, 153],
+                "get_line_width": 1.55,
                 "stroked": True,
                 "filled": False,
-                "opacity": 0.95,
+                "opacity": 0.7,
             }
         },
         legends={
             "title": "Legend",
-            "values": [{"label": "Boundaries", "color": "#a9a9a9"}],
+            "values": [{"label": "Conservancy Boundaries", "color": "#778899"}],
         },
         **create_conservancy_boundaries_params,
     )
@@ -550,7 +551,7 @@ conservancy_text_layer = (
             "size_max_pixels": 100,
             "size_scale": 2.25,
             "font_family": "Calibri",
-            "font_weight": "700",
+            "font_weight": "normal",
             "get_text_anchor": "middle",
             "get_alignment_baseline": "center",
             "billboard": True,
@@ -635,7 +636,7 @@ create_mnc_parcels_layers = (
             "extruded": False,
             "get_fill_color": [189, 183, 107],
             "get_line_color": [189, 183, 107],
-            "get_line_width": 1.95,
+            "get_line_width": 1.55,
             "stroked": True,
             "filled": True,
             "opacity": 0.15,
@@ -1470,100 +1471,6 @@ persist_boma_summary = (
 
 
 # %% [markdown]
-# ## Exclude geom outliers from mobile boma events
-
-# %%
-# parameters
-
-exclude_mobile_outliers_params = dict()
-
-# %%
-# call the task
-
-
-exclude_mobile_outliers = (
-    exclude_geom_outliers.set_task_instance_id("exclude_mobile_outliers")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(df=map_mobile_boma, z_threshold=3, **exclude_mobile_outliers_params)
-    .call()
-)
-
-
-# %% [markdown]
-# ## Remove mobile boma invalid points
-
-# %%
-# parameters
-
-remove_mobile_invalids_params = dict()
-
-# %%
-# call the task
-
-
-remove_mobile_invalids = (
-    drop_null_geometry.set_task_instance_id("remove_mobile_invalids")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        gdf=exclude_mobile_outliers,
-        geometry_column="geometry",
-        **remove_mobile_invalids_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Apply colormap to mobile boma events
-
-# %%
-# parameters
-
-mobile_colormap_params = dict()
-
-# %%
-# call the task
-
-
-mobile_colormap = (
-    apply_color_map.set_task_instance_id("mobile_colormap")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        input_column_name="event_type",
-        output_column_name="event_type_colors",
-        colormap="tab20",
-        df=remove_mobile_invalids,
-        **mobile_colormap_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
 # ## Generate mobile boma point layers
 
 # %%
@@ -1588,21 +1495,20 @@ generate_mobile_layers = (
     )
     .partial(
         layer_style={
-            "get_fill_color": "event_type_colors",
-            "get_line_color": "event_type_colors",
-            "get_radius": 4,
-            "opacity": 0.75,
+            "get_fill_color": [0, 0, 128],
+            "get_line_color": [0, 0, 128],
+            "get_radius": 3,
+            "opacity": 0.55,
             "stroked": True,
         },
         legend={
             "title": "Boma Movements",
-            "label_column": "event_type",
-            "color_column": "event_type_colors",
-            "sort": "ascending",
+            "values": [{"label": "Boma movement", "color": "#000080"}],
+            "sort": None,
             "label_suffix": None,
         },
         data_url=None,
-        geodataframe=mobile_colormap,
+        geodataframe=map_mobile_boma,
         **generate_mobile_layers_params,
     )
     .call()
@@ -2017,68 +1923,6 @@ persist_predation_summary = (
 
 
 # %% [markdown]
-# ## Exclude geom outliers from livestock predation events
-
-# %%
-# parameters
-
-exclude_livestock_outliers_params = dict()
-
-# %%
-# call the task
-
-
-exclude_livestock_outliers = (
-    exclude_geom_outliers.set_task_instance_id("exclude_livestock_outliers")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        df=map_livestock_predation, z_threshold=3, **exclude_livestock_outliers_params
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Remove invalid points from livestock predation events
-
-# %%
-# parameters
-
-remove_livestock_invalid_geoms_params = dict()
-
-# %%
-# call the task
-
-
-remove_livestock_invalid_geoms = (
-    drop_null_geometry.set_task_instance_id("remove_livestock_invalid_geoms")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        gdf=exclude_livestock_outliers,
-        geometry_column="geometry",
-        **remove_livestock_invalid_geoms_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
 # ## Apply colormap to livestock predation events
 
 # %%
@@ -2104,8 +1948,8 @@ apply_livestock_colormap = (
     .partial(
         input_column_name="Livestock Species",
         output_column_name="colors",
-        colormap="tab20",
-        df=remove_livestock_invalid_geoms,
+        colormap="Set3",
+        df=map_livestock_predation,
         **apply_livestock_colormap_params,
     )
     .call()
@@ -2139,8 +1983,8 @@ generate_livestock_layers = (
         layer_style={
             "get_fill_color": "colors",
             "get_line_color": "colors",
-            "get_radius": 4,
-            "opacity": 0.75,
+            "get_radius": 3,
+            "opacity": 0.55,
             "stroked": True,
         },
         legend={
@@ -2369,7 +2213,7 @@ replace_livestock_nulls_params = dict()
 
 
 replace_livestock_nulls = (
-    replace_missing_with_label.set_task_instance_id("replace_livestock_nulls")
+    replace_empty_strings_in_columns.set_task_instance_id("replace_livestock_nulls")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -2382,7 +2226,9 @@ replace_livestock_nulls = (
     .partial(
         df=map_livestock_summary,
         columns=["suspected_predator", "livestock_species"],
-        label="Unknown",
+        replacement="Unknown",
+        strip_whitespace=False,
+        missing="ignore",
         **replace_livestock_nulls_params,
     )
     .call()
@@ -2436,7 +2282,7 @@ convert_livestock_int_params = dict()
 
 
 convert_livestock_int = (
-    convert_to_int.set_task_instance_id("convert_livestock_int")
+    coerce_columns_to_int.set_task_instance_id("convert_livestock_int")
     .handle_errors()
     .with_tracing()
     .skipif(
@@ -2451,7 +2297,8 @@ convert_livestock_int = (
         columns=["total_livestock_affected"],
         errors="coerce",
         fill_value=0,
-        inplace=False,
+        missing="ignore",
+        nullable=True,
         **convert_livestock_int_params,
     )
     .call()
@@ -2535,100 +2382,6 @@ map_illegal_grazing = (
 
 
 # %% [markdown]
-# ## Exclude geom outliers from illegal grazing events
-
-# %%
-# parameters
-
-exclude_illegal_outliers_params = dict()
-
-# %%
-# call the task
-
-
-exclude_illegal_outliers = (
-    exclude_geom_outliers.set_task_instance_id("exclude_illegal_outliers")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(df=map_illegal_grazing, z_threshold=3, **exclude_illegal_outliers_params)
-    .call()
-)
-
-
-# %% [markdown]
-# ## Remove illegal grazing invalid points
-
-# %%
-# parameters
-
-remove_illegal_invalids_params = dict()
-
-# %%
-# call the task
-
-
-remove_illegal_invalids = (
-    drop_null_geometry.set_task_instance_id("remove_illegal_invalids")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        gdf=exclude_illegal_outliers,
-        geometry_column="geometry",
-        **remove_illegal_invalids_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
-# ## Apply colormap to illegal grazing events
-
-# %%
-# parameters
-
-illegal_colormap_params = dict()
-
-# %%
-# call the task
-
-
-illegal_colormap = (
-    apply_color_map.set_task_instance_id("illegal_colormap")
-    .handle_errors()
-    .with_tracing()
-    .skipif(
-        conditions=[
-            any_is_empty_df,
-            any_dependency_skipped,
-        ],
-        unpack_depth=1,
-    )
-    .partial(
-        input_column_name="event_type",
-        output_column_name="event_type_colors",
-        colormap="tab20",
-        df=remove_illegal_invalids,
-        **illegal_colormap_params,
-    )
-    .call()
-)
-
-
-# %% [markdown]
 # ## Generate illegal grazing point layers
 
 # %%
@@ -2653,21 +2406,20 @@ generate_illegal_layers = (
     )
     .partial(
         layer_style={
-            "get_fill_color": "event_type_colors",
-            "get_line_color": "event_type_colors",
-            "get_radius": 4,
-            "opacity": 0.75,
+            "get_fill_color": [0, 0, 128],
+            "get_line_color": [0, 0, 128],
+            "get_radius": 3,
+            "opacity": 0.55,
             "stroked": True,
         },
         legend={
             "title": "Illegal grazing",
-            "label_column": "event_type",
-            "color_column": "event_type_colors",
-            "sort": "ascending",
+            "values": [{"label": "Illegal grazing", "color": "#000080"}],
+            "sort": None,
             "label_suffix": None,
         },
         data_url=None,
-        geodataframe=illegal_colormap,
+        geodataframe=map_illegal_grazing,
         **generate_illegal_layers_params,
     )
     .call()

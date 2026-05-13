@@ -94,7 +94,10 @@ from ecoscope_workflows_ext_custom.tasks.results import (
 )
 from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map
 from ecoscope_workflows_ext_custom.tasks.transformation import (
-    drop_null_geometry as drop_null_geometry,
+    coerce_columns_to_int as coerce_columns_to_int,
+)
+from ecoscope_workflows_ext_custom.tasks.transformation import (
+    replace_empty_strings_in_columns as replace_empty_strings_in_columns,
 )
 from ecoscope_workflows_ext_ecoscope.tasks.analysis import summarize_df as summarize_df
 from ecoscope_workflows_ext_ecoscope.tasks.io import persist_df as persist_df
@@ -102,14 +105,7 @@ from ecoscope_workflows_ext_ecoscope.tasks.transformation import (
     apply_color_map as apply_color_map,
 )
 from ecoscope_workflows_ext_mnc.tasks import add_totals_row as add_totals_row
-from ecoscope_workflows_ext_mnc.tasks import convert_to_int as convert_to_int
-from ecoscope_workflows_ext_mnc.tasks import (
-    exclude_geom_outliers as exclude_geom_outliers,
-)
 from ecoscope_workflows_ext_mnc.tasks import map_column_values as map_column_values
-from ecoscope_workflows_ext_mnc.tasks import (
-    replace_missing_with_label as replace_missing_with_label,
-)
 from ecoscope_workflows_ext_ste.tasks import (
     combine_deckgl_map_layers as combine_deckgl_map_layers,
 )
@@ -165,10 +161,7 @@ def main(params: Params):
         "summarize_mobile_boma": ["map_mobile_boma"],
         "add_mobile_summary_row": ["summarize_mobile_boma"],
         "persist_boma_summary": ["add_mobile_summary_row"],
-        "exclude_mobile_outliers": ["map_mobile_boma"],
-        "remove_mobile_invalids": ["exclude_mobile_outliers"],
-        "mobile_colormap": ["remove_mobile_invalids"],
-        "generate_mobile_layers": ["mobile_colormap"],
+        "generate_mobile_layers": ["map_mobile_boma"],
         "global_zoom_value": ["overall_grazing_zones"],
         "combine_custom_mobile_boma": [
             "create_mnc_styled_layers",
@@ -189,9 +182,7 @@ def main(params: Params):
         "summarize_predation_events": ["map_livestock_predation"],
         "add_predation_summary_row": ["summarize_predation_events"],
         "persist_predation_summary": ["add_predation_summary_row"],
-        "exclude_livestock_outliers": ["map_livestock_predation"],
-        "remove_livestock_invalid_geoms": ["exclude_livestock_outliers"],
-        "apply_livestock_colormap": ["remove_livestock_invalid_geoms"],
+        "apply_livestock_colormap": ["map_livestock_predation"],
         "generate_livestock_layers": ["apply_livestock_colormap"],
         "combine_custom_livestock": [
             "create_conservancy_boundaries",
@@ -208,10 +199,7 @@ def main(params: Params):
         "convert_livestock_int": ["map_livestock_unknown"],
         "persist_livestock_summary": ["convert_livestock_int"],
         "map_illegal_grazing": ["drop_illegal_prefix"],
-        "exclude_illegal_outliers": ["map_illegal_grazing"],
-        "remove_illegal_invalids": ["exclude_illegal_outliers"],
-        "illegal_colormap": ["remove_illegal_invalids"],
-        "generate_illegal_layers": ["illegal_colormap"],
+        "generate_illegal_layers": ["map_illegal_grazing"],
         "combine_custom_illegal": [
             "create_mnc_styled_layers",
             "conservancy_text_layer",
@@ -274,7 +262,12 @@ def main(params: Params):
                 "base_maps": [
                     {
                         "url": "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
-                        "opacity": 1,
+                        "opacity": 0.8,
+                        "max_zoom": 20,
+                    },
+                    {
+                        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}",
+                        "opacity": 0.35,
                         "max_zoom": 20,
                     },
                 ],
@@ -365,19 +358,19 @@ def main(params: Params):
                     "Conservancy": {
                         "extruded": False,
                         "get_fill_color": [
-                            169,
-                            169,
-                            169,
+                            119,
+                            136,
+                            153,
                         ],
                         "get_line_color": [
-                            169,
-                            169,
-                            169,
+                            119,
+                            136,
+                            153,
                         ],
-                        "get_line_width": 4.0,
+                        "get_line_width": 1.55,
                         "stroked": True,
                         "filled": False,
-                        "opacity": 0.95,
+                        "opacity": 0.7,
                     },
                     "Conservancy Herd Zone": {
                         "extruded": False,
@@ -391,10 +384,10 @@ def main(params: Params):
                             255,
                             47,
                         ],
-                        "get_line_width": 1.95,
+                        "get_line_width": 1.25,
                         "stroked": True,
                         "filled": True,
-                        "opacity": 0.15,
+                        "opacity": 0.1,
                     },
                     "Grazing Zone 1": {
                         "extruded": False,
@@ -408,10 +401,10 @@ def main(params: Params):
                             107,
                             47,
                         ],
-                        "get_line_width": 1.95,
+                        "get_line_width": 1.25,
                         "stroked": True,
                         "filled": True,
-                        "opacity": 0.15,
+                        "opacity": 0.1,
                     },
                     "Grazing Zone 2": {
                         "extruded": False,
@@ -425,10 +418,10 @@ def main(params: Params):
                             139,
                             139,
                         ],
-                        "get_line_width": 1.95,
+                        "get_line_width": 1.25,
                         "stroked": True,
                         "filled": True,
-                        "opacity": 0.15,
+                        "opacity": 0.1,
                     },
                     "Grazing Zone 3": {
                         "extruded": False,
@@ -442,10 +435,10 @@ def main(params: Params):
                             100,
                             0,
                         ],
-                        "get_line_width": 1.95,
+                        "get_line_width": 1.25,
                         "stroked": True,
                         "filled": True,
-                        "opacity": 0.15,
+                        "opacity": 0.1,
                     },
                     "Grazing Zone 4": {
                         "extruded": False,
@@ -459,18 +452,18 @@ def main(params: Params):
                             188,
                             139,
                         ],
-                        "get_line_width": 1.95,
+                        "get_line_width": 1.25,
                         "stroked": True,
                         "filled": True,
-                        "opacity": 0.15,
+                        "opacity": 0.7,
                     },
                 },
                 "legends": {
                     "title": "Legend",
                     "values": [
                         {
-                            "label": "Conservancy",
-                            "color": "#a9a9a9",
+                            "label": "Conservancy Boundaries",
+                            "color": "#778899",
                         },
                         {
                             "label": "Conservancy Herd Zone",
@@ -510,27 +503,27 @@ def main(params: Params):
                     "Conservancy": {
                         "extruded": False,
                         "get_fill_color": [
-                            169,
-                            169,
-                            169,
+                            119,
+                            136,
+                            153,
                         ],
                         "get_line_color": [
-                            169,
-                            169,
-                            169,
+                            119,
+                            136,
+                            153,
                         ],
-                        "get_line_width": 4.0,
+                        "get_line_width": 1.55,
                         "stroked": True,
                         "filled": False,
-                        "opacity": 0.95,
+                        "opacity": 0.7,
                     },
                 },
                 "legends": {
                     "title": "Legend",
                     "values": [
                         {
-                            "label": "Boundaries",
-                            "color": "#a9a9a9",
+                            "label": "Conservancy Boundaries",
+                            "color": "#778899",
                         },
                     ],
                 },
@@ -589,7 +582,7 @@ def main(params: Params):
                     "size_max_pixels": 100,
                     "size_scale": 2.25,
                     "font_family": "Calibri",
-                    "font_weight": "700",
+                    "font_weight": "normal",
                     "get_text_anchor": "middle",
                     "get_alignment_baseline": "center",
                     "billboard": True,
@@ -652,7 +645,7 @@ def main(params: Params):
                         183,
                         107,
                     ],
-                    "get_line_width": 1.95,
+                    "get_line_width": 1.55,
                     "stroked": True,
                     "filled": True,
                     "opacity": 0.15,
@@ -1218,68 +1211,6 @@ def main(params: Params):
             | (params_dict.get("persist_boma_summary") or {}),
             method="call",
         ),
-        "exclude_mobile_outliers": Node(
-            async_task=exclude_geom_outliers.validate()
-            .set_task_instance_id("exclude_mobile_outliers")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "df": DependsOn("map_mobile_boma"),
-                "z_threshold": 3,
-            }
-            | (params_dict.get("exclude_mobile_outliers") or {}),
-            method="call",
-        ),
-        "remove_mobile_invalids": Node(
-            async_task=drop_null_geometry.validate()
-            .set_task_instance_id("remove_mobile_invalids")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "gdf": DependsOn("exclude_mobile_outliers"),
-                "geometry_column": "geometry",
-            }
-            | (params_dict.get("remove_mobile_invalids") or {}),
-            method="call",
-        ),
-        "mobile_colormap": Node(
-            async_task=apply_color_map.validate()
-            .set_task_instance_id("mobile_colormap")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "input_column_name": "event_type",
-                "output_column_name": "event_type_colors",
-                "colormap": "tab20",
-                "df": DependsOn("remove_mobile_invalids"),
-            }
-            | (params_dict.get("mobile_colormap") or {}),
-            method="call",
-        ),
         "generate_mobile_layers": Node(
             async_task=create_scatterplot_layer.validate()
             .set_task_instance_id("generate_mobile_layers")
@@ -1295,21 +1226,33 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "layer_style": {
-                    "get_fill_color": "event_type_colors",
-                    "get_line_color": "event_type_colors",
-                    "get_radius": 4,
-                    "opacity": 0.75,
+                    "get_fill_color": [
+                        0,
+                        0,
+                        128,
+                    ],
+                    "get_line_color": [
+                        0,
+                        0,
+                        128,
+                    ],
+                    "get_radius": 3,
+                    "opacity": 0.55,
                     "stroked": True,
                 },
                 "legend": {
                     "title": "Boma Movements",
-                    "label_column": "event_type",
-                    "color_column": "event_type_colors",
-                    "sort": "ascending",
+                    "values": [
+                        {
+                            "label": "Boma movement",
+                            "color": "#000080",
+                        },
+                    ],
+                    "sort": None,
                     "label_suffix": None,
                 },
                 "data_url": None,
-                "geodataframe": DependsOn("mobile_colormap"),
+                "geodataframe": DependsOn("map_mobile_boma"),
             }
             | (params_dict.get("generate_mobile_layers") or {}),
             method="call",
@@ -1593,46 +1536,6 @@ def main(params: Params):
             | (params_dict.get("persist_predation_summary") or {}),
             method="call",
         ),
-        "exclude_livestock_outliers": Node(
-            async_task=exclude_geom_outliers.validate()
-            .set_task_instance_id("exclude_livestock_outliers")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "df": DependsOn("map_livestock_predation"),
-                "z_threshold": 3,
-            }
-            | (params_dict.get("exclude_livestock_outliers") or {}),
-            method="call",
-        ),
-        "remove_livestock_invalid_geoms": Node(
-            async_task=drop_null_geometry.validate()
-            .set_task_instance_id("remove_livestock_invalid_geoms")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "gdf": DependsOn("exclude_livestock_outliers"),
-                "geometry_column": "geometry",
-            }
-            | (params_dict.get("remove_livestock_invalid_geoms") or {}),
-            method="call",
-        ),
         "apply_livestock_colormap": Node(
             async_task=apply_color_map.validate()
             .set_task_instance_id("apply_livestock_colormap")
@@ -1649,8 +1552,8 @@ def main(params: Params):
             partial={
                 "input_column_name": "Livestock Species",
                 "output_column_name": "colors",
-                "colormap": "tab20",
-                "df": DependsOn("remove_livestock_invalid_geoms"),
+                "colormap": "Set3",
+                "df": DependsOn("map_livestock_predation"),
             }
             | (params_dict.get("apply_livestock_colormap") or {}),
             method="call",
@@ -1672,8 +1575,8 @@ def main(params: Params):
                 "layer_style": {
                     "get_fill_color": "colors",
                     "get_line_color": "colors",
-                    "get_radius": 4,
-                    "opacity": 0.75,
+                    "get_radius": 3,
+                    "opacity": 0.55,
                     "stroked": True,
                 },
                 "legend": {
@@ -1825,7 +1728,7 @@ def main(params: Params):
             method="call",
         ),
         "replace_livestock_nulls": Node(
-            async_task=replace_missing_with_label.validate()
+            async_task=replace_empty_strings_in_columns.validate()
             .set_task_instance_id("replace_livestock_nulls")
             .handle_errors()
             .with_tracing()
@@ -1843,7 +1746,9 @@ def main(params: Params):
                     "suspected_predator",
                     "livestock_species",
                 ],
-                "label": "Unknown",
+                "replacement": "Unknown",
+                "strip_whitespace": False,
+                "missing": "ignore",
             }
             | (params_dict.get("replace_livestock_nulls") or {}),
             method="call",
@@ -1875,7 +1780,7 @@ def main(params: Params):
             method="call",
         ),
         "convert_livestock_int": Node(
-            async_task=convert_to_int.validate()
+            async_task=coerce_columns_to_int.validate()
             .set_task_instance_id("convert_livestock_int")
             .handle_errors()
             .with_tracing()
@@ -1894,7 +1799,8 @@ def main(params: Params):
                 ],
                 "errors": "coerce",
                 "fill_value": 0,
-                "inplace": False,
+                "missing": "ignore",
+                "nullable": True,
             }
             | (params_dict.get("convert_livestock_int") or {}),
             method="call",
@@ -1949,68 +1855,6 @@ def main(params: Params):
             | (params_dict.get("map_illegal_grazing") or {}),
             method="call",
         ),
-        "exclude_illegal_outliers": Node(
-            async_task=exclude_geom_outliers.validate()
-            .set_task_instance_id("exclude_illegal_outliers")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "df": DependsOn("map_illegal_grazing"),
-                "z_threshold": 3,
-            }
-            | (params_dict.get("exclude_illegal_outliers") or {}),
-            method="call",
-        ),
-        "remove_illegal_invalids": Node(
-            async_task=drop_null_geometry.validate()
-            .set_task_instance_id("remove_illegal_invalids")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "gdf": DependsOn("exclude_illegal_outliers"),
-                "geometry_column": "geometry",
-            }
-            | (params_dict.get("remove_illegal_invalids") or {}),
-            method="call",
-        ),
-        "illegal_colormap": Node(
-            async_task=apply_color_map.validate()
-            .set_task_instance_id("illegal_colormap")
-            .handle_errors()
-            .with_tracing()
-            .skipif(
-                conditions=[
-                    any_is_empty_df,
-                    any_dependency_skipped,
-                ],
-                unpack_depth=1,
-            )
-            .set_executor("lithops"),
-            partial={
-                "input_column_name": "event_type",
-                "output_column_name": "event_type_colors",
-                "colormap": "tab20",
-                "df": DependsOn("remove_illegal_invalids"),
-            }
-            | (params_dict.get("illegal_colormap") or {}),
-            method="call",
-        ),
         "generate_illegal_layers": Node(
             async_task=create_scatterplot_layer.validate()
             .set_task_instance_id("generate_illegal_layers")
@@ -2026,21 +1870,33 @@ def main(params: Params):
             .set_executor("lithops"),
             partial={
                 "layer_style": {
-                    "get_fill_color": "event_type_colors",
-                    "get_line_color": "event_type_colors",
-                    "get_radius": 4,
-                    "opacity": 0.75,
+                    "get_fill_color": [
+                        0,
+                        0,
+                        128,
+                    ],
+                    "get_line_color": [
+                        0,
+                        0,
+                        128,
+                    ],
+                    "get_radius": 3,
+                    "opacity": 0.55,
                     "stroked": True,
                 },
                 "legend": {
                     "title": "Illegal grazing",
-                    "label_column": "event_type",
-                    "color_column": "event_type_colors",
-                    "sort": "ascending",
+                    "values": [
+                        {
+                            "label": "Illegal grazing",
+                            "color": "#000080",
+                        },
+                    ],
+                    "sort": None,
                     "label_suffix": None,
                 },
                 "data_url": None,
-                "geodataframe": DependsOn("illegal_colormap"),
+                "geodataframe": DependsOn("map_illegal_grazing"),
             }
             | (params_dict.get("generate_illegal_layers") or {}),
             method="call",

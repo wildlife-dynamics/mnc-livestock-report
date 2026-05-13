@@ -9,15 +9,23 @@ requirements:
     channel: https://repo.prefix.dev/ecoscope-workflows/
 
   - name: ecoscope-workflows-ext-custom
-    version: "0.0.43.*"
+    version: "0.0.49.*"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-ste
-    version: "0.0.18.*"
+    version: "0.0.20.*"
+    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
+
+  - name: ecoscope-workflows-ext-mep
+    version: "0.0.19.*"
+    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
+
+  - name: ecoscope-workflows-ext-big-life
+    version: "0.0.11.*"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-mnc
-    version: "0.0.8.*"
+    version: "0.0.10.*"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
     
 workflow:
@@ -46,7 +54,11 @@ workflow:
       base_maps:
         - url: >-
             https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}
-          opacity: 1
+          opacity: 0.80
+          max_zoom: 20
+
+        - url: https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer/tile/{z}/{y}/{x}
+          opacity: 0.35
           max_zoom: 20
 
   - name: Download MNC community conservancy boundaries
@@ -98,63 +110,63 @@ workflow:
       styles:
         Conservancy:
           extruded: false
-          get_fill_color: [169, 169, 169]
-          get_line_color: [169, 169, 169]
-          get_line_width: 4.00
+          get_fill_color: [119, 136, 153]
+          get_line_color: [119, 136, 153]
+          get_line_width: 1.55
           stroked: true
           filled: false
-          opacity: 0.95
+          opacity: 0.70
 
         Conservancy Herd Zone:
           extruded: false
           get_fill_color: [173, 255, 47]
           get_line_color: [173, 255, 47]
-          get_line_width: 1.95
+          get_line_width: 1.25
           stroked: true
           filled: true
-          opacity: 0.15
+          opacity: 0.10
 
         Grazing Zone 1:
           extruded: false
           get_fill_color: [85, 107, 47]
           get_line_color: [85, 107, 47]
-          get_line_width: 1.95
+          get_line_width: 1.25
           stroked: true
           filled: true
-          opacity: 0.15
+          opacity: 0.10
 
         Grazing Zone 2:
           extruded: false
           get_fill_color: [0, 139, 139]
           get_line_color: [0, 139, 139]
-          get_line_width: 1.95
+          get_line_width: 1.25
           stroked: true
           filled: true
-          opacity: 0.15
+          opacity: 0.10
 
         Grazing Zone 3:
           extruded: false
           get_fill_color: [0, 100, 0]
           get_line_color: [0, 100, 0]
-          get_line_width: 1.95
+          get_line_width: 1.25
           stroked: true
           filled: true
-          opacity: 0.15
+          opacity: 0.10
 
         Grazing Zone 4:
           extruded: false
           get_fill_color: [143, 188, 139]
           get_line_color: [143, 188, 139]
-          get_line_width: 1.95
+          get_line_width: 1.25
           stroked: true
           filled: true
-          opacity: 0.15
+          opacity: 0.70
 
       legends:
         title: Legend
         values: 
-          - label: Conservancy
-            color: "#a9a9a9"
+          - label: Conservancy Boundaries
+            color: "#778899"
           - label: Conservancy Herd Zone
             color: "#adff2f"
           - label: Grazing Zone 1
@@ -174,18 +186,18 @@ workflow:
       styles:
         Conservancy:
           extruded: false
-          get_fill_color: [169, 169, 169]
-          get_line_color: [169, 169, 169]
-          get_line_width: 4.00
+          get_fill_color: [119, 136, 153]
+          get_line_color: [119, 136, 153]
+          get_line_width: 1.55
           stroked: true
           filled: false
-          opacity: 0.95
+          opacity: 0.70
 
       legends:
         title: Legend 
         values: 
-          - label: Boundaries
-            color: "#a9a9a9"
+          - label: Conservancy Boundaries
+            color: "#778899"
 
   - name: Create conservancy gdf from split dict 
     id: conservancy_gdf
@@ -220,7 +232,7 @@ workflow:
         size_scale: 2.25 
 
         font_family: Calibri 
-        font_weight: "700" 
+        font_weight: "normal" 
         get_text_anchor: middle 
         get_alignment_baseline: center
         billboard: true 
@@ -254,7 +266,7 @@ workflow:
         extruded: false
         get_fill_color: [189, 183, 107]
         get_line_color: [189, 183, 107]
-        get_line_width: 1.95
+        get_line_width: 1.55
         stroked: true 
         filled: true 
         opacity: 0.15
@@ -604,41 +616,6 @@ workflow:
       filename: mobile_boma_movement_summary_table 
 
   # Draw mobile boma map 
-  - name: Exclude geom outliers from mobile boma events
-    id: exclude_mobile_outliers
-    task: exclude_geom_outliers
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      df: ${{ workflow.map_mobile_boma.return }}
-      z_threshold: 3
-
-  - name: Remove mobile boma invalid points 
-    id: remove_mobile_invalids 
-    task: ecoscope_workflows_ext_custom.tasks.transformation.drop_null_geometry
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      gdf: ${{ workflow.exclude_mobile_outliers.return }}
-      geometry_column: geometry 
-
-  - name: Apply colormap to mobile boma events
-    id: mobile_colormap
-    task: apply_color_map
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial:
-      input_column_name: event_type
-      output_column_name: event_type_colors
-      colormap: tab20
-      df: ${{ workflow.remove_mobile_invalids.return }}
-
   - name: Generate mobile boma point layers
     id: generate_mobile_layers
     task: create_scatterplot_layer
@@ -648,19 +625,20 @@ workflow:
         - any_dependency_skipped
     partial:
       layer_style:
-        get_fill_color: event_type_colors
-        get_line_color: event_type_colors
-        get_radius: 4
-        opacity: 0.75
+        get_fill_color: [0, 0, 128]
+        get_line_color: [0, 0, 128]
+        get_radius: 3
+        opacity: 0.55
         stroked: true
       legend:
         title: Boma Movements
-        label_column: event_type
-        color_column: event_type_colors
-        sort: ascending
+        values: 
+          - label: Boma movement
+            color: "#000080"
+        sort: null
         label_suffix: null
       data_url: null
-      geodataframe: ${{ workflow.mobile_colormap.return }}
+      geodataframe: ${{ workflow.map_mobile_boma.return }} 
   
   # global zoom value 
   - name: Global map zoom value
@@ -839,28 +817,6 @@ workflow:
       df: ${{ workflow.add_predation_summary_row.return }}
       filename: total_livestock_predation_summary_table
 
-  - name: Exclude geom outliers from livestock predation events 
-    id: exclude_livestock_outliers
-    task: exclude_geom_outliers
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      df: ${{ workflow.map_livestock_predation.return }}
-      z_threshold: 3
-
-  - name: Remove invalid points from livestock predation events 
-    id: remove_livestock_invalid_geoms 
-    task: ecoscope_workflows_ext_custom.tasks.transformation.drop_null_geometry
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      gdf: ${{ workflow.exclude_livestock_outliers.return }}
-      geometry_column: geometry 
-
   - name: Apply colormap to livestock predation events
     id: apply_livestock_colormap
     task: apply_color_map
@@ -871,8 +827,8 @@ workflow:
     partial:
       input_column_name: "Livestock Species"
       output_column_name: colors
-      colormap: tab20
-      df: ${{ workflow.remove_livestock_invalid_geoms.return }}
+      colormap: Set3
+      df: ${{ workflow.map_livestock_predation.return }}
 
   - name: Generate livestock predation point layers
     id: generate_livestock_layers
@@ -885,8 +841,8 @@ workflow:
       layer_style:
         get_fill_color: colors
         get_line_color: colors
-        get_radius: 4
-        opacity: 0.75
+        get_radius: 3
+        opacity: 0.55
         stroked: true
       legend:
         title: Livestock Species 
@@ -987,7 +943,7 @@ workflow:
 
   - name: Replace nulls on livestock predator table with unknown
     id: replace_livestock_nulls
-    task: replace_missing_with_label
+    task: replace_empty_strings_in_columns #replace_missing_with_label
     skipif:
       conditions:
         - any_is_empty_df
@@ -997,7 +953,9 @@ workflow:
       columns: 
         - suspected_predator
         - livestock_species
-      label: Unknown 
+      replacement: Unknown 
+      strip_whitespace: false
+      missing: ignore
   
   - name: Map others with Unknown 
     id: map_livestock_unknown
@@ -1016,7 +974,7 @@ workflow:
 
   - name: Convert livestock_affected col to int 
     id: convert_livestock_int
-    task: convert_to_int
+    task: coerce_columns_to_int #convert_to_int
     skipif:
       conditions:
         - any_is_empty_df
@@ -1027,7 +985,8 @@ workflow:
         - total_livestock_affected
       errors: coerce
       fill_value: 0
-      inplace: false
+      missing: ignore 
+      nullable: true 
 
   - name: Persist livestock summary table 
     id: persist_livestock_summary
@@ -1064,41 +1023,6 @@ workflow:
       raise_if_not_found: false 
 
 # Draw illegal grazing map 
-  - name: Exclude geom outliers from illegal grazing events
-    id: exclude_illegal_outliers
-    task: exclude_geom_outliers
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      df: ${{ workflow.map_illegal_grazing.return }}
-      z_threshold: 3
-
-  - name: Remove illegal grazing invalid points 
-    id: remove_illegal_invalids 
-    task: ecoscope_workflows_ext_custom.tasks.transformation.drop_null_geometry
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      gdf: ${{ workflow.exclude_illegal_outliers.return }}
-      geometry_column: geometry 
-
-  - name: Apply colormap to illegal grazing events
-    id: illegal_colormap
-    task: apply_color_map
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial:
-      input_column_name: event_type
-      output_column_name: event_type_colors
-      colormap: tab20
-      df: ${{ workflow.remove_illegal_invalids.return }}
-
   - name: Generate illegal grazing point layers
     id: generate_illegal_layers
     task: create_scatterplot_layer
@@ -1108,19 +1032,20 @@ workflow:
         - any_dependency_skipped
     partial:
       layer_style:
-        get_fill_color: event_type_colors
-        get_line_color: event_type_colors
-        get_radius: 4
-        opacity: 0.75
+        get_fill_color: [0, 0, 128]
+        get_line_color: [0, 0, 128]
+        get_radius: 3
+        opacity: 0.55
         stroked: true
       legend:
         title: Illegal grazing
-        label_column: event_type
-        color_column: event_type_colors
-        sort: ascending
+        values: 
+          - label: Illegal grazing
+            color: "#000080"
+        sort: null
         label_suffix: null
       data_url: null
-      geodataframe: ${{ workflow.illegal_colormap.return }}
+      geodataframe: ${{ workflow.map_illegal_grazing.return }}
   
   - name: Combine styled layers with illegal grazing layer
     id: combine_custom_illegal
