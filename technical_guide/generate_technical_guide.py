@@ -119,7 +119,7 @@ story += [
     p("Mobile boma movements, cattle counts, livestock predation, and illegal grazing reporting", SUBTITLE),
     sp(4),
     p(f"Generated {date.today().strftime('%B %d, %Y')}", META),
-    p("Workflow id: <b>mnc_livestock_report</b>", META),
+    p("Workflow id: <b>livestock_monitoring</b>", META),
     PageBreak(),
 ]
 
@@ -129,53 +129,60 @@ story += [
 story += [
     h1("1. Overview"),
     hr(),
-    p("The <b>mnc_livestock_report</b> workflow fetches livestock-related events "
-      "from EarthRanger for a specified time window — specifically "
-      "<b>mobile_boma_rep</b>, <b>cattle_count</b>, <b>livestock_predation_rep</b>, "
-      "and <b>illegal_grazing_rep</b> event types — and routes them into four "
-      "independent reporting branches. In parallel, the workflow downloads MNC "
-      "conservancy boundary and parcels geospatial files from Dropbox to use as "
-      "base layers on all maps."),
+    p("The <b>livestock_monitoring</b> workflow (repository: mnc_livestock_report) "
+      "fetches livestock-related events from EarthRanger for a specified time "
+      "window — specifically <b>mobile_boma_rep</b>, <b>cattle_count</b>, "
+      "<b>livestock_predation_rep</b>, and <b>illegal_grazing_rep</b> event types "
+      "— and routes them into four independent reporting branches. In parallel, "
+      "the workflow downloads MNC conservancy boundary and parcels geospatial "
+      "files from Dropbox and builds a shared set of map base layers (conservancy "
+      "boundary, colour-coded grazing zones, parcels) used by all three maps. "
+      "Three of the four branches, plus all three maps, are additionally wrapped "
+      "as widgets on the workflow's dashboard."),
     sp(4),
     p("The workflow delivers:"),
     bullet("<b>mobile_boma_movement_summary_table.csv</b> — daily count of mobile "
-           "boma movement events with a grand total row"),
+           "boma movement events"),
     bullet("<b>total_cattle_count_summary_table.csv</b> — cattle counts per grazing "
-           "zone per date"),
+           "zone per date, with a workflow-computed total column"),
+    bullet("<b>total_livestock_predation_summary_table.csv</b> — daily count of "
+           "livestock predation events"),
     bullet("<b>livestock_predation_summary_table.csv</b> — predation incidents by "
            "species, suspected predator, and number of animals affected"),
     bullet("<b>boma_movement_map.html / .png</b> — point map of mobile boma "
-           "locations on MNC grazing zones and parcels"),
+           "locations over the shared base layers"),
     bullet("<b>livestock_predation_events.html / .png</b> — point map of predation "
-           "incidents on conservancy boundaries and parcels"),
+           "incidents over the shared base layers, coloured by species"),
     bullet("<b>illegal_grazing_map.html / .png</b> — point map of illegal grazing "
-           "incidents on MNC grazing zones"),
+           "incidents over the shared base layers"),
+    bullet("<b>A dashboard</b> — five widgets: the three maps above, plus the "
+           "cattle count and livestock predation count-summary tables"),
     sp(6),
     h2("Output summary"),
     make_table(
         [
-            ["Output", "Type", "Source event type", "Description"],
+            ["Output", "Type", "Source event type", "Dashboard widget?"],
             ["mobile_boma_movement_summary_table.csv",
-             "CSV", "mobile_boma_rep",
-             "Daily boma event counts + Total row"],
+             "CSV", "mobile_boma_rep", "No"],
             ["total_cattle_count_summary_table.csv",
-             "CSV", "cattle_count",
-             "Cattle per zone per date"],
+             "CSV", "cattle_count", "Yes (table)"],
+            ["total_livestock_predation_summary_table.csv",
+             "CSV", "livestock_predation_rep", "Yes (table)"],
             ["livestock_predation_summary_table.csv",
-             "CSV", "livestock_predation_rep",
-             "Predation records by species and predator"],
+             "CSV", "livestock_predation_rep", "No"],
             ["boma_movement_map.html / .png",
-             "Map", "mobile_boma_rep",
-             "Boma locations on grazing zones and parcels"],
+             "Map", "mobile_boma_rep", "Yes (map)"],
             ["livestock_predation_events.html / .png",
-             "Map", "livestock_predation_rep",
-             "Predation locations on conservancy boundaries"],
+             "Map", "livestock_predation_rep", "Yes (map)"],
             ["illegal_grazing_map.html / .png",
-             "Map", "illegal_grazing_rep",
-             "Illegal grazing locations on grazing zones"],
+             "Map", "illegal_grazing_rep", "Yes (map)"],
         ],
-        [5.5*cm, 1.5*cm, 3.5*cm, W - 10.5*cm],
+        [6*cm, 1.5*cm, 3.5*cm, W - 11*cm],
     ),
+    note("total_livestock_predation_summary_table.csv (daily counts) and "
+         "livestock_predation_summary_table.csv (detailed per-event records) are "
+         "two distinct outputs from the same branch — only the former has a "
+         "dashboard widget, titled “Livestock Predation Summary”."),
     PageBreak(),
 ]
 
@@ -189,14 +196,24 @@ story += [
     make_table(
         [
             ["Package", "Version", "Channel"],
-            ["ecoscope-workflows-core",        "0.22.18.*", "ecoscope-workflows"],
-            ["ecoscope-workflows-ext-ecoscope","0.22.18.*", "ecoscope-workflows"],
-            ["ecoscope-workflows-ext-custom",  "0.0.43.*",  "ecoscope-workflows-custom"],
-            ["ecoscope-workflows-ext-ste",     "0.0.18.*",  "ecoscope-workflows-custom"],
-            ["ecoscope-workflows-ext-mnc",     "0.0.8.*",   "ecoscope-workflows-custom"],
+            ["ecoscope-platform",              ">=2.15.0, <2.16.0", "ecoscope-workflows"],
+            ["ecoscope-workflows-ext-custom",  "0.1.0rc14.*", "ecoscope-workflows-custom"],
+            ["ecoscope-workflows-ext-ste",     "0.0.0rc1.*",  "ecoscope-workflows-custom"],
+            ["ecoscope-workflows-ext-mnc",     "1.0.0.*",     "ecoscope-workflows-custom"],
+            ["pydeck",                         "0.9.2",       "conda-forge"],
+            ["opentelemetry-sdk",              ">=1.20.0, <2.0.0", "conda-forge"],
         ],
-        [6.5*cm, 3*cm, W - 9.5*cm],
+        [6.5*cm, 3.5*cm, W - 10*cm],
     ),
+    note("<b>ecoscope-platform</b> replaces the previously separate "
+         "<b>ecoscope-workflows-core</b> and <b>ecoscope-workflows-ext-ecoscope</b> "
+         "packages. The <b>ecoscope-workflows-ext-mep</b> and "
+         "<b>ecoscope-workflows-ext-big-life</b> packages, previously listed, are "
+         "no longer required. Several tasks that used to resolve from the default "
+         "task namespace are now referenced by their fully qualified module path "
+         "(e.g. ecoscope_workflows_ext_ste.tasks.io.fetch_and_persist_file, "
+         "ecoscope_workflows_ext_custom.tasks.results.draw_map) — this is a "
+         "housekeeping change with no behavioural effect."),
     sp(6),
     h2("2.2  Connections and external assets"),
     make_table(
@@ -206,11 +223,11 @@ story += [
              "Fetch event records and resolve event detail display titles "
              "(used in all process_events_details calls)"],
             ["mnc_conservancy.gpkg", "fetch_and_persist_file (Dropbox)",
-             "MNC community conservancy boundaries split by grazing zone. "
-             "Used as polygon layers on the boma movement and illegal grazing maps."],
+             "MNC community conservancy boundary, used to derive the conservancy "
+             "outline, grazing zone, and Mara North Conservancy layers."],
             ["mnc_across_the_river_parcels.gpkg", "fetch_and_persist_file (Dropbox)",
              "MNC across-the-river land parcels. Used as an additional polygon "
-             "layer on the boma movement and livestock predation maps."],
+             "layer on all three maps."],
         ],
         [3.5*cm, 4*cm, W - 7.5*cm],
     ),
@@ -234,9 +251,10 @@ story += [
     hr(),
     p("Before any event data is fetched, the workflow downloads and prepares "
       "all geospatial base layers. These layers are shared across all three maps "
-      "produced by the workflow."),
+      "produced by the workflow. This pipeline was substantially reworked from "
+      "the previous revision — see the notes at the end of this section."),
     sp(6),
-    h2("3.1  Conservancy boundaries"),
+    h2("3.1  Conservancy boundary and grazing zone filters"),
     make_table(
         [
             ["Step", "Task", "Detail"],
@@ -246,75 +264,42 @@ story += [
             ["2", "load_df",
              "Load the gpkg into a GeoDataFrame "
              "(layer: null, deserialize_json: false)."],
-            ["3", "split_gdf_by_column",
-             "Split the GeoDataFrame into a dict keyed by the <b>grazing_zone</b> "
-             "column values (Conservancy, Conservancy Herd Zone, Grazing Zone 1–4)."],
-            ["4", "annotate_gdf_dict_with_geom_type",
-             "Add a geometry-type attribute to each GDF in the dict "
-             "(required for layer rendering)."],
+            ["3", "fix_invalid_geometries",
+             "Repair any invalid geometries in the loaded boundary GeoDataFrame."],
+            ["4", "filter_df",
+             "Filter to <b>grazing_zone == 'Conservancy'</b> "
+             "→ filter_conservancy_boundary, used for the conservancy outline layer."],
+            ["5", "filter_df",
+             "Filter to <b>name == 'Mara North Conservancy'</b> "
+             "→ filter_mara_north, used to compute the shared map zoom/extent "
+             "(Section 4.4)."],
+            ["6", "filter_df",
+             "Filter to <b>grazing_zone != 'Conservancy'</b> "
+             "→ filter_grazing_zones, the coloured grazing-zone polygons."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
     ),
     sp(6),
-    h2("3.2  Styled zone layers"),
-    p("Two separate sets of DeckGL layers are created from the annotated dict:"),
-    make_table(
-        [
-            ["Layer set", "Task", "Zones included", "Used on maps"],
-            ["create_mnc_styled_layers",
-             "create_deckgl_layers_from_gdf_dict",
-             "Conservancy (grey outline), Conservancy Herd Zone (green), "
-             "Grazing Zones 1–4 (dark olive, teal, dark green, sage)",
-             "Boma movement map, Illegal grazing map"],
-            ["create_conservancy_boundaries",
-             "create_deckgl_layers_from_gdf_dict",
-             "Conservancy boundary only (grey outline, no fill)",
-             "Livestock predation map"],
-        ],
-        [3.5*cm, 3.5*cm, 4*cm, W - 11*cm],
-    ),
-    note("The full zone style set includes a map legend with colour swatches "
-         "for all six zone types. The conservancy-only set uses a single "
-         "'Boundaries' legend entry."),
-    sp(6),
-    h2("3.3  Conservancy and grazing zone GDFs"),
+    h2("3.2  Grazing zone colouring and legend"),
     make_table(
         [
             ["Step", "Task", "Detail"],
-            ["1", "create_gdf_from_dict",
-             "Extract the <b>Conservancy</b> key from the split dict "
-             "to produce a single-zone GeoDataFrame (conservancy_gdf). "
-             "Used to place conservancy name text labels on maps."],
-            ["2", "filter_df",
-             "Filter the full loaded GDF to rows where "
-             "grazing_zone != 'Conservancy' (op: ne). "
-             "Produces overall_grazing_zones, used to compute the global map "
-             "zoom and view state."],
+            ["1", "apply_color_map",
+             "Colour filter_grazing_zones by the <b>grazing_zone</b> column using "
+             "the <b>GnBu</b> colormap → output column <b>zone_color</b>."],
+            ["2", "build_legend_values_from_column",
+             "Build the map legend entries directly from the grazing_zone / "
+             "zone_color columns (sort: ascending)."],
         ],
-        [1.2*cm, 4.5*cm, W - 5.7*cm],
+        [1.2*cm, 5*cm, W - 6.2*cm],
     ),
+    note("Grazing zone colours and legend entries are now generated dynamically "
+         "from whatever zone names are present in the data, instead of a "
+         "hardcoded style dictionary keyed on six fixed zone names. If new zones "
+         "are added or renamed in the source boundary file, the map colouring "
+         "and legend adapt automatically."),
     sp(6),
-    h2("3.4  Conservancy text labels"),
-    p("Task: <b>create_custom_text_layer</b>. Renders conservancy names on the map "
-      "using the <b>name</b> field from conservancy_gdf. Key style parameters:"),
-    make_table(
-        [
-            ["Parameter", "Value"],
-            ["get_text",           "name"],
-            ["get_color",          "[0, 0, 0, 255] (black)"],
-            ["get_size",           "1500 m"],
-            ["size_min_pixels",    "70"],
-            ["size_max_pixels",    "100"],
-            ["size_scale",         "2.25"],
-            ["font_family",        "Calibri"],
-            ["font_weight",        "700 (bold)"],
-            ["billboard",          "true"],
-            ["use_centroid",       "true (label placed at polygon centroid)"],
-        ],
-        [5*cm, W - 5*cm],
-    ),
-    sp(6),
-    h2("3.5  Parcels layer"),
+    h2("3.3  Parcels layer"),
     make_table(
         [
             ["Step", "Task", "Detail"],
@@ -323,14 +308,38 @@ story += [
              "(overwrite_existing: false, retries: 3)."],
             ["2", "load_df",
              "Load the parcels gpkg into a GeoDataFrame."],
-            ["3", "get_gdf_geom_type",
-             "Detect and attach the geometry type of the parcels GDF."],
-            ["4", "create_deckgl_layer_from_gdf",
-             "Render as a filled polygon layer: dark khaki fill (#bdb76b), "
-             "opacity 0.15, stroked. Legend: 'Parcels'."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
     ),
+    sp(6),
+    h2("3.4  Map layers"),
+    p("All three static base layers are now created with the same task, "
+      "<b>create_geojson_layer</b>:"),
+    make_table(
+        [
+            ["Layer", "Style", "Legend"],
+            ["create_conservancy_layer",
+             "Unfilled, stroked grey outline (169,169,169,255), width 1.75",
+             "“Boundaries” — Conservancy Boundary (#a9a9a9)"],
+            ["create_grazing_zones_layer",
+             "Filled and stroked, opacity 0.5, fill/line colour from zone_color",
+             "“Grazing Zones” — dynamic, from Section 3.2"],
+            ["create_parcels_layer",
+             "Filled (189,183,107,60) / stroked (189,183,107,255), width 1.5",
+             "“Boundaries” — Parcels (#bdb76b)"],
+        ],
+        [4.5*cm, 6*cm, W - 10.5*cm],
+    ),
+    note("The previous revision built these same three concepts very "
+         "differently: it split the boundary file into a dict of six hardcoded "
+         "zones (split_gdf_by_column / annotate_gdf_dict_with_geom_type / "
+         "create_deckgl_layers_from_gdf_dict) and rendered a separate text-label "
+         "layer showing the conservancy name at its centroid "
+         "(create_custom_text_layer). Both the zone dict-splitting approach and "
+         "the conservancy name text-label layer have been removed in this "
+         "revision — maps no longer show a name label on the conservancy "
+         "polygon. The parcels layer no longer needs a separate geometry-type "
+         "detection step (get_gdf_geom_type) before rendering."),
     PageBreak(),
 ]
 
@@ -358,9 +367,12 @@ story += [
             ["include_updates",         "false"],
             ["include_related_events",  "false"],
             ["include_display_values",  "false"],
+            ["force_point_geometry",    "true"],
         ],
         [5*cm, W - 5*cm],
     ),
+    note("force_point_geometry: true normalises all event geometries to points "
+         "before they reach the branch pipelines and the map layers below."),
     sp(6),
     h2("4.2  Date extraction and temporal indexing"),
     make_table(
@@ -401,12 +413,28 @@ story += [
          "'Livestock Species'). All downstream map_columns steps reference "
          "these titles directly."),
     sp(6),
-    h2("4.4  Global map zoom value"),
-    p("Task: <b>view_state_deck_gdf</b>. Computes the map centre and zoom from "
-      "the <b>overall_grazing_zones</b> GeoDataFrame (pitch: 0, bearing: 0). "
-      "This view state is shared by the boma movement map and the illegal grazing "
-      "map. The livestock predation map uses a fixed view state instead "
-      "(lon: 35.2093, lat: -1.2578, zoom: 9.75)."),
+    h2("4.4  Shared map zoom and extent"),
+    p("A task-group titled <b>“Map Zoom &amp; Extent”</b> computes a single view "
+      "state, shared by all three maps in this workflow:"),
+    make_table(
+        [
+            ["Step", "Task", "Detail"],
+            ["1", "envelope_gdf",
+             "Compute the bounding envelope of filter_mara_north "
+             "(the Mara North Conservancy boundary, Section 3.1)."],
+            ["2", "compute_view_state_from_gdf",
+             "Derive a centre point and zoom level from that envelope "
+             "(pitch: 0, bearing: 0, max_zoom: 15)."],
+        ],
+        [1.2*cm, 4.5*cm, W - 5.7*cm],
+    ),
+    note("This replaces the previous revision's approach, which computed a "
+         "zoom value from the union of grazing zone geometries "
+         "(view_state_deck_gdf on overall_grazing_zones) and used it only for "
+         "the boma movement and illegal grazing maps — the livestock predation "
+         "map used a separate, hand-picked fixed coordinate and zoom "
+         "(lon: 35.2093, lat: -1.2578, zoom: 9.75). All three maps now share the "
+         "same conservancy-derived view state."),
     PageBreak(),
 ]
 
@@ -430,6 +458,7 @@ story += [
             ["Column retained", "Notes"],
             ["id",                    "Used for counting events in the summary"],
             ["date",                  "Used for grouping in the summary table"],
+            ["event_type",            "Retained but not used for map colouring"],
             ["geometry",              "Used for the map"],
             ["Date of Relocation",    "Event detail field (title)"],
             ["Electric Boma Status",  "Event detail field (title)"],
@@ -445,43 +474,40 @@ story += [
         [
             ["Step", "Task", "Detail"],
             ["1", "summarize_df",
-             "Group by <b>date</b>; compute <b>sum(id)</b> displayed as "
+             "Group by <b>date</b>; compute <b>nunique(id)</b> displayed as "
              "<b>boma_events</b> (decimal_places: 0). reset_index: true."],
-            ["2", "add_totals_row",
-             "Append a grand <b>Total</b> row summing the boma_events column "
-             "(label_col: date, label: 'Total')."],
-            ["3", "persist_df",
+            ["2", "persist_df",
              "Save as <b>mobile_boma_movement_summary_table.csv</b>."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
     ),
+    note("The previous revision appended a grand “Total” row via add_totals_row "
+         "before persisting. That step has been removed — the CSV now contains "
+         "only one row per date."),
     sp(6),
     h2("5.4  Map"),
     make_table(
         [
             ["Step", "Task", "Detail"],
-            ["1", "exclude_geom_outliers",
-             "Remove spatial outliers using <b>z_threshold: 3</b> on the "
-             "map_mobile_boma GDF."],
-            ["2", "drop_null_geometry",
-             "Drop any remaining rows with null geometry."],
-            ["3", "apply_color_map",
-             "Colour points by <b>event_type</b> using the <b>tab20</b> colormap "
-             "→ output column <b>event_type_colors</b>."],
-            ["4", "create_scatterplot_layer",
-             "Render points: get_radius: 4, opacity: 0.75, stroked: true. "
-             "Legend title: 'Boma Movements', label from event_type, "
-             "colour from event_type_colors."],
-            ["5", "combine_deckgl_map_layers",
-             "Static layers: create_mnc_styled_layers, create_mnc_parcels_layers, "
-             "conservancy_text_layer. Grouped: mobile boma point layer."],
-            ["6", "draw_map",
+            ["1", "create_scatterplot_layer",
+             "Render points from the map_mobile_boma table: fixed navy fill/line "
+             "colour (0,0,128), get_radius: 3, opacity: 0.55, stroked: true. "
+             "Legend title: “Movements”, single entry “Boma movement”."],
+            ["2", "combine_deckgl_map_layers",
+             "Static layers: create_grazing_zones_layer, create_parcels_layer, "
+             "create_conservancy_layer (Section 3.4). Grouped: the boma point layer."],
+            ["3", "draw_map",
              "Render map (max_zoom: 10, legend placement: bottom-right, "
-             "view_state from global_zoom_value)."],
-            ["7", "persist_text",
+             "tile_layers from configure_base_maps, "
+             "view_state from the shared Map Zoom &amp; Extent group, Section 4.4)."],
+            ["4", "persist_text",
              "Save HTML to <b>boma_movement_map.html</b>."],
-            ["8", "html_to_png",
-             "Convert to PNG (device_scale_factor: 2.0, wait: 40 s)."],
+            ["5", "create_map_widget_single_view",
+             "Wrap the map as a dashboard widget titled "
+             "“Mobile Boma Movement Map”."],
+            ["6", "html_to_png",
+             "Convert to PNG (device_scale_factor: 2.0, wait: 40 s, "
+             "max_concurrent_pages: 1)."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
     ),
@@ -495,14 +521,16 @@ story += [
     h1("6. Branch 2 — Cattle Counts"),
     hr(),
     p("Filters <b>cattle_count</b> events and produces a table of cattle counts "
-      "broken down by grazing zone per date. This branch produces no map."),
+      "broken down by grazing zone per date, with a workflow-computed total. "
+      "This branch produces no map."),
     sp(6),
     h2("6.1  Normalisation"),
     p("Steps 1–4 follow the common normalisation pattern in Section 4.3."),
     sp(6),
     h2("6.2  Column selection and renaming"),
-    p("Task: <b>map_columns</b> (raise_if_not_found: false). "
-      "The following columns are retained and renamed:"),
+    p("Task: <b>map_columns</b> (raise_if_not_found: false). The source "
+      "<b>total_cattle_counted_from_all_zones</b> column is now dropped rather "
+      "than retained — the workflow computes its own total instead (Section 6.3)."),
     make_table(
         [
             ["Source column (title after prefix drop)", "Renamed to"],
@@ -510,20 +538,43 @@ story += [
             ["# cattle in Zone 1 mobile boma",          "zone_1"],
             ["# cattle in Zone 2/3 mobile boma",        "zone_2_3"],
             ["# cattle in Zone 4",                      "zone_4"],
-            ["total_cattle_counted_from_all_zones",     "total_count"],
         ],
         [7*cm, W - 7*cm],
     ),
     sp(6),
-    h2("6.3  Persistence"),
+    h2("6.3  Total, display renaming, and persistence"),
     make_table(
         [
             ["Step", "Task", "Detail"],
-            ["1", "persist_df",
-             "Save as <b>total_cattle_count_summary_table.csv</b> (filetype: csv)."],
+            ["1", "convert_column_values_to_numeric",
+             "Coerce zone_1, zone_2_3, and zone_4 to numeric."],
+            ["2", "ecoscope_workflows_ext_mnc.tasks.aggregation.apply_arithmetic_operation_over_rows",
+             "Sum zone_1 + zone_2_3 + zone_4 row-wise into a new <b>total</b> "
+             "column (operation: add)."],
+            ["3", "map_columns",
+             "Rename columns to display-friendly headers: date→Date, "
+             "zone_1→Zone 1, zone_2_3→Zone 2/3, zone_4→Zone 4, total→Total."],
+            ["4", "persist_df",
+             "Save as <b>total_cattle_count_summary_table.csv</b>, using the "
+             "display-renamed table."],
+            ["5", "draw_table",
+             "Render the display-renamed table as an HTML widget "
+             "(widget_id: “Total Cattle Count Summary”; sorting and filtering "
+             "enabled; download disabled)."],
+            ["6", "persist_text",
+             "Save the rendered HTML as a text file "
+             "(filename: total_cattle_count_summary_table.html)."],
+            ["7", "create_table_widget_single_view",
+             "Wrap the persisted HTML into a dashboard widget titled "
+             "“Total Cattle Count Summary”."],
         ],
-        [1.2*cm, 4.5*cm, W - 5.7*cm],
+        [1.2*cm, 6*cm, W - 7.2*cm],
     ),
+    note("Previously, the source event's own "
+         "total_cattle_counted_from_all_zones field was trusted and simply "
+         "renamed to total_count. The workflow now computes the total itself "
+         "from the three zone counts, and the table gains a dashboard widget "
+         "it did not have before."),
     PageBreak(),
 ]
 
@@ -533,20 +584,22 @@ story += [
 story += [
     h1("7. Branch 3 — Livestock Predation"),
     hr(),
-    p("Filters <b>livestock_predation_rep</b> events and produces both a point "
-      "map and a cleaned summary table."),
+    p("Filters <b>livestock_predation_rep</b> events and produces a point map, "
+      "a daily count-summary table, and a detailed record-level table."),
     sp(6),
     h2("7.1  Normalisation"),
     p("Steps 1–4 follow the common normalisation pattern in Section 4.3."),
     sp(6),
-    h2("7.2  Column selection for mapping"),
+    h2("7.2  Column selection"),
     p("Task: <b>map_columns</b> (raise_if_not_found: false, rename_columns: {}). "
-      "The following columns are retained for both the map and the summary table:"),
+      "The following columns are retained and shared by the map, the "
+      "count-summary table, and the detailed table:"),
     make_table(
         [
             ["Column retained", "Notes"],
             ["id",                       "Row identifier"],
             ["date",                     "Event date"],
+            ["event_type",               "Retained but not used for map colouring"],
             ["geometry",                 "Used for the map"],
             ["Livestock Species",        "Event detail field (title)"],
             ["Suspected Predator",       "Event detail field (title)"],
@@ -559,41 +612,45 @@ story += [
     make_table(
         [
             ["Step", "Task", "Detail"],
-            ["1", "exclude_geom_outliers",
-             "Remove spatial outliers (z_threshold: 3)."],
-            ["2", "drop_null_geometry",
-             "Drop rows with null geometry."],
-            ["3", "apply_color_map",
-             "Colour points by <b>Livestock Species</b> using the <b>tab20</b> "
-             "colormap → output column <b>colors</b>."],
-            ["4", "create_scatterplot_layer",
-             "Render points: get_radius: 4, opacity: 0.75, stroked: true. "
-             "Legend title: 'Livestock Species', label from Livestock Species, "
-             "colour from colors."],
-            ["5", "combine_deckgl_map_layers",
-             "Static layers: create_conservancy_boundaries, "
-             "create_mnc_parcels_layers, conservancy_text_layer. "
-             "Grouped: predation point layer."],
-            ["6", "draw_map",
-             "Render map using fixed view state "
-             "(lon: 35.2093, lat: -1.2578, zoom: 9.75, "
-             "max_zoom: 10, legend: bottom-right)."],
-            ["7", "persist_text",
+            ["1", "format_text_column",
+             "Capitalise the <b>Livestock Species</b> column (method: capitalize), "
+             "so inconsistent casing in the source data doesn't split a species "
+             "into multiple colours/legend entries."],
+            ["2", "apply_color_map",
+             "Colour points by the capitalised <b>Livestock Species</b> using the "
+             "<b>Set3</b> colormap → output column <b>colors</b>."],
+            ["3", "create_scatterplot_layer",
+             "Render points: fill/line colour from colors, get_radius: 3, "
+             "opacity: 0.55, stroked: true. Legend title: “Livestock Species”, "
+             "entries generated from the species/colour columns (sort: ascending)."],
+            ["4", "combine_deckgl_map_layers",
+             "Static layers: create_grazing_zones_layer, create_parcels_layer, "
+             "create_conservancy_layer (Section 3.4). Grouped: the predation "
+             "point layer."],
+            ["5", "draw_map",
+             "Render map (max_zoom: 10, legend: bottom-right, view_state from "
+             "the shared Map Zoom &amp; Extent group, Section 4.4)."],
+            ["6", "persist_text",
              "Save HTML to <b>livestock_predation_events.html</b>."],
+            ["7", "create_map_widget_single_view",
+             "Wrap the map as a dashboard widget titled "
+             "“Livestock Predation Events Map”."],
             ["8", "html_to_png",
              "Convert to PNG (device_scale_factor: 2.0, wait: 40 s)."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
     ),
-    note("The livestock predation map uses a fixed view state rather than the "
-         "computed global_zoom_value, centred on the MNC area at zoom 9.75. "
-         "It also uses the conservancy-boundaries-only layer set (no coloured "
-         "grazing zones) to keep the focus on predation incident locations."),
+    note("Two things changed from the previous revision: (1) this map now uses "
+         "the same shared conservancy-derived view state as the other two maps, "
+         "instead of a fixed coordinate/zoom; and (2) it now sits on the full "
+         "three-layer base (grazing zones + parcels + conservancy) rather than "
+         "the conservancy-boundary-only layer set — grazing zone colours are now "
+         "visible under the predation points."),
     sp(6),
     h2("7.4  Summary tables"),
     p("The livestock predation branch produces two independent CSVs from the "
       "same normalised DataFrame."),
-    h3("7.4a  total_livestock_predation_summary_table.csv"),
+    h3("7.4a  total_livestock_predation_summary_table.csv (dashboard widget: “Livestock Predation Summary”)"),
     make_table(
         [
             ["Step", "Task", "Detail"],
@@ -601,17 +658,34 @@ story += [
              "Group by <b>date</b>; compute <b>nunique(id)</b> displayed as "
              "<b>livestock_predation_events</b> (decimal_places: 0). "
              "reset_index: true."],
-            ["2", "add_totals_row",
-             "Append a grand <b>Total</b> row summing the "
-             "livestock_predation_events column "
-             "(label_col: date, label: 'Total')."],
+            ["2", "map_columns",
+             "Rename columns to display-friendly headers: date→Date, "
+             "livestock_predation_events→Livestock Predation Events."],
             ["3", "persist_df",
-             "Save as <b>total_livestock_predation_summary_table.csv</b>."],
+             "Save as <b>total_livestock_predation_summary_table.csv</b>, using "
+             "the display-renamed table."],
+            ["4", "draw_table",
+             "Render the display-renamed table as an HTML widget "
+             "(widget_id: “Livestock Predation Summary”)."],
+            ["5", "persist_text",
+             "Save the rendered HTML "
+             "(filename: livestock_predation_summary_table.html)."],
+            ["6", "create_table_widget_single_view",
+             "Wrap the persisted HTML into a dashboard widget titled "
+             "“Livestock Predation Summary”."],
         ],
-        [1.2*cm, 4.5*cm, W - 5.7*cm],
+        [1.2*cm, 6*cm, W - 7.2*cm],
     ),
+    note("The previous revision appended a grand “Total” row (add_totals_row) "
+         "here instead of renaming columns and creating a widget. The output "
+         "filename is unchanged, but its content and presentation differ."),
+    note("This step's persisted HTML filename "
+         "(livestock_predation_summary_table.html) differs only by extension "
+         "from the unrelated detail CSV in Section 7.4b "
+         "(livestock_predation_summary_table.csv) — don't confuse the two when "
+         "browsing ECOSCOPE_WORKFLOWS_RESULTS."),
     sp(6),
-    h3("7.4b  livestock_predation_summary_table.csv"),
+    h3("7.4b  livestock_predation_summary_table.csv (no dashboard widget)"),
     make_table(
         [
             ["Step", "Task", "Detail"],
@@ -622,20 +696,26 @@ story += [
              "Suspected Predator → suspected_predator, "
              "Total livestock affected → total_livestock_affected. "
              "(raise_if_not_found: false)"],
-            ["2", "replace_missing_with_label",
-             "Replace nulls in <b>suspected_predator</b> and "
-             "<b>livestock_species</b> with the label <b>'Unknown'</b>."],
-            ["3", "map_column_values",
+            ["2", "fill_missing_values",
+             "Replace missing values in <b>suspected_predator</b> and "
+             "<b>livestock_species</b> with <b>'Unknown'</b> (subset: both "
+             "columns)."],
+            ["3", "replace_column_values",
              "Map <b>'Other (specify in comments)'</b> → <b>'Unknown'</b> "
-             "in the <b>suspected_predator</b> column (inplace: true)."],
-            ["4", "convert_to_int",
+             "in the <b>suspected_predator</b> column (inplace: true, "
+             "errors: ignore)."],
+            ["4", "ecoscope_workflows_ext_mnc.tasks.transformation.convert_columns_to_int",
              "Cast <b>total_livestock_affected</b> to integer "
-             "(errors: coerce, fill_value: 0, inplace: false)."],
+             "(errors: coerce, fill_value: 0)."],
             ["5", "persist_df",
              "Save as <b>livestock_predation_summary_table.csv</b>."],
         ],
-        [1.2*cm, 4.5*cm, W - 5.7*cm],
+        [1.2*cm, 6*cm, W - 7.2*cm],
     ),
+    note("Unlike the other three summary tables in this workflow, this detail "
+         "table is not passed through a display-renaming step — its columns "
+         "remain snake_case (livestock_species, suspected_predator, "
+         "total_livestock_affected), and it has no dashboard widget."),
     PageBreak(),
 ]
 
@@ -646,8 +726,7 @@ story += [
     h1("8. Branch 4 — Illegal Grazing"),
     hr(),
     p("Filters <b>illegal_grazing_rep</b> events and produces a point map of "
-      "illegal grazing incidents on the MNC grazing zones. This branch produces "
-      "no CSV summary table."),
+      "illegal grazing incidents. This branch produces no CSV summary table."),
     sp(6),
     h2("8.1  Normalisation"),
     p("Steps 1–4 follow the common normalisation pattern in Section 4.3."),
@@ -659,7 +738,7 @@ story += [
         [
             ["Column retained", "Notes"],
             ["date",          "Event date"],
-            ["event_type",    "Event type identifier; used for colouring map points"],
+            ["event_type",    "Retained but not used for map colouring"],
             ["geometry",      "Used for the map"],
             ["Herd Zone",     "Event detail field (title)"],
             ["Landowner name","Event detail field (title)"],
@@ -672,30 +751,32 @@ story += [
     make_table(
         [
             ["Step", "Task", "Detail"],
-            ["1", "exclude_geom_outliers",
-             "Remove spatial outliers (z_threshold: 3)."],
-            ["2", "drop_null_geometry",
-             "Drop rows with null geometry."],
-            ["3", "apply_color_map",
-             "Colour points by <b>event_type</b> using the <b>tab20</b> "
-             "colormap → output column <b>event_type_colors</b>."],
-            ["4", "create_scatterplot_layer",
-             "Render points: get_radius: 4, opacity: 0.75, stroked: true. "
-             "Legend title: 'Illegal grazing', label from event_type."],
-            ["5", "combine_deckgl_map_layers",
-             "Static layers: create_mnc_styled_layers, conservancy_text_layer. "
-             "Grouped: illegal grazing point layer. "
-             "(Note: parcels layer is not included on this map.)"],
-            ["6", "draw_map",
-             "Render map (max_zoom: 10, legend: bottom-right, "
-             "view_state from global_zoom_value)."],
-            ["7", "persist_text",
+            ["1", "create_scatterplot_layer",
+             "Render points: fixed navy fill/line colour (0,0,128), "
+             "get_radius: 3, opacity: 0.55, stroked: true. Legend title: "
+             "“Activity”, single entry “Illegal grazing”."],
+            ["2", "combine_deckgl_map_layers",
+             "Static layers: create_grazing_zones_layer, create_parcels_layer, "
+             "create_conservancy_layer (Section 3.4). Grouped: the illegal "
+             "grazing point layer."],
+            ["3", "draw_map",
+             "Render map (max_zoom: 10, legend: bottom-right, view_state from "
+             "the shared Map Zoom &amp; Extent group, Section 4.4)."],
+            ["4", "persist_text",
              "Save HTML to <b>illegal_grazing_map.html</b>."],
-            ["8", "html_to_png",
+            ["5", "create_map_widget_single_view",
+             "Wrap the map as a dashboard widget titled "
+             "“Illegal Grazing Events Map”."],
+            ["6", "html_to_png",
              "Convert to PNG (device_scale_factor: 2.0, wait: 40 s)."],
         ],
         [1.2*cm, 4.5*cm, W - 5.7*cm],
     ),
+    note("The legend title changed from “Illegal grazing” to “Activity” (the "
+         "single legend entry is still labelled “Illegal grazing”). More "
+         "significantly, this map's static base layers now include the parcels "
+         "layer — previously parcels were deliberately excluded from this map; "
+         "all three maps now share the identical three-layer base."),
     PageBreak(),
 ]
 
@@ -713,15 +794,15 @@ story += [
             ["mobile_boma_movement_summary_table.csv",
              "Mobile Boma",
              "date, boma_events",
-             "Daily boma event counts with a grand Total row"],
+             "Daily boma event counts"],
             ["total_cattle_count_summary_table.csv",
              "Cattle Count",
-             "date, zone_1, zone_2_3, zone_4, total_count",
-             "Cattle counts per zone per date"],
+             "Date, Zone 1, Zone 2/3, Zone 4, Total",
+             "Cattle counts per zone per date, with a workflow-computed total"],
             ["total_livestock_predation_summary_table.csv",
              "Livestock Predation",
-             "date, livestock_predation_events",
-             "Daily unique predation event count with a grand Total row"],
+             "Date, Livestock Predation Events",
+             "Daily unique predation event count"],
             ["livestock_predation_summary_table.csv",
              "Livestock Predation",
              "date, livestock_species, suspected_predator, total_livestock_affected",
@@ -736,19 +817,26 @@ story += [
             ["File", "Branch", "Coloured by", "Base layers"],
             ["boma_movement_map.html / .png",
              "Mobile Boma",
-             "event_type",
-             "MNC grazing zones, parcels, conservancy labels"],
+             "fixed (navy)",
+             "Grazing zones, parcels, conservancy boundary"],
             ["livestock_predation_events.html / .png",
              "Livestock Predation",
              "Livestock Species",
-             "Conservancy boundaries, parcels, conservancy labels"],
+             "Grazing zones, parcels, conservancy boundary"],
             ["illegal_grazing_map.html / .png",
              "Illegal Grazing",
-             "event_type",
-             "MNC grazing zones, conservancy labels (no parcels)"],
+             "fixed (navy)",
+             "Grazing zones, parcels, conservancy boundary"],
         ],
         [5*cm, 3*cm, 3.5*cm, W - 11.5*cm],
     ),
+    sp(6),
+    h2("9.3  Dashboard widget HTML"),
+    p("The two count-summary tables (cattle count, livestock predation) each "
+      "have a matching rendered HTML table persisted (via draw_table → "
+      "persist_text) alongside their CSV. These HTML files are the data source "
+      "referenced by the corresponding create_table_widget_single_view widget — "
+      "they are not intended to be opened directly."),
     PageBreak(),
 ]
 
@@ -758,9 +846,10 @@ story += [
 story += [
     h1("10. Workflow Execution Logic"),
     hr(),
-    h2("10.1  Per-task skip conditions"),
-    p("This workflow does <b>not</b> use a global <b>task-instance-defaults</b> "
-      "block. Every task from event retrieval onwards carries its own explicit "
+    h2("10.1  Global skip conditions"),
+    p("This workflow now defines a single <b>task-instance-defaults</b> block "
+      "at the top of the spec, which applies the same skipif conditions to "
+      "every task automatically. Individual tasks no longer repeat their own "
       "skipif block:"),
     make_table(
         [
@@ -770,10 +859,13 @@ story += [
         ],
         [5*cm, W - 5*cm],
     ),
-    note("Because skip conditions are per-task rather than global, each of the "
-         "four branches propagates skips independently. For example, if no "
-         "cattle_count events are returned, only the cattle count branch is "
-         "skipped; the other three branches continue normally."),
+    note("This is a behaviour-preserving simplification over the previous "
+         "spec, which declared the identical skipif block on every task "
+         "individually. Because the conditions are unchanged, each of the "
+         "four branches still propagates skips independently — for example, if "
+         "no cattle_count events are returned, only the cattle count branch "
+         "(and its widget) is skipped; the other three branches continue "
+         "normally."),
     sp(6),
     h2("10.2  Four independent branches"),
     p("After the shared ingestion pipeline produces <b>events_temporal</b>, "
@@ -781,17 +873,19 @@ story += [
       "reads directly from events_temporal with no cross-branch dependencies:"),
     make_table(
         [
-            ["Branch", "Filter value", "CSV output", "Map output"],
+            ["Branch", "Filter value", "CSV output", "Map / table widgets"],
             ["Mobile Boma",    "mobile_boma_rep",
-             "mobile_boma_movement_summary_table.csv", "boma_movement_map"],
+             "mobile_boma_movement_summary_table.csv", "Map widget only"],
             ["Cattle Count",   "cattle_count",
-             "total_cattle_count_summary_table.csv", "—"],
+             "total_cattle_count_summary_table.csv", "Table widget"],
             ["Livestock Predation", "livestock_predation_rep",
-             "livestock_predation_summary_table.csv", "livestock_predation_events"],
+             "total_livestock_predation_summary_table.csv + "
+             "livestock_predation_summary_table.csv",
+             "Map + table widget (count table only)"],
             ["Illegal Grazing", "illegal_grazing_rep",
-             "—", "illegal_grazing_map"],
+             "—", "Map widget only"],
         ],
-        [3.5*cm, 3.5*cm, 4.5*cm, W - 11.5*cm],
+        [3.5*cm, 3.5*cm, 5*cm, W - 12*cm],
     ),
     sp(6),
     h2("10.3  No mapvalues or fan-out"),
@@ -803,12 +897,16 @@ story += [
     p("Three maps are rendered as HTML and then converted to PNG using "
       "<b>html_to_png</b>. All three use the same conversion settings: "
       "device_scale_factor: 2.0, wait_for_timeout: 40 000 ms, "
-      "max_concurrent_pages: 1, full_page: false."),
+      "max_concurrent_pages: 1, full_page: false. This happens in addition to, "
+      "not instead of, each map's dashboard widget."),
     sp(6),
     h2("10.5  Dashboard"),
-    p("The workflow concludes with <b>gather_dashboard</b> which packages "
-      "workflow details, time range, and groupers. The <b>widgets</b> list "
-      "is empty — no single-value or map widgets are configured."),
+    p("The workflow concludes with <b>gather_dashboard</b> (id: "
+      "mnc_events_dashboard, name: “MNC event report dashboard”), which "
+      "packages workflow details, time range, groupers, and the <b>widgets</b> "
+      "list. The widgets list now references five widgets — the three map "
+      "widgets and the two table widgets (cattle count, livestock predation "
+      "count-summary) — where previously this list was empty."),
     PageBreak(),
 ]
 
@@ -821,11 +919,12 @@ story += [
     make_table(
         [
             ["Package", "Version pinned in spec.yaml"],
-            ["ecoscope-workflows-core",        "0.22.18.*"],
-            ["ecoscope-workflows-ext-ecoscope","0.22.18.*"],
-            ["ecoscope-workflows-ext-custom",  "0.0.43.*"],
-            ["ecoscope-workflows-ext-ste",     "0.0.18.*"],
-            ["ecoscope-workflows-ext-mnc",     "0.0.8.*"],
+            ["ecoscope-platform",              ">=2.15.0, <2.16.0"],
+            ["ecoscope-workflows-ext-custom",  "0.1.0rc14.*"],
+            ["ecoscope-workflows-ext-ste",     "0.0.0rc1.*"],
+            ["ecoscope-workflows-ext-mnc",     "1.0.0.*"],
+            ["pydeck",                         "0.9.2"],
+            ["opentelemetry-sdk",              ">=1.20.0, <2.0.0"],
         ],
         [7*cm, W - 7*cm],
     ),

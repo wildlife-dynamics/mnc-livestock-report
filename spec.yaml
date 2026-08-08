@@ -1,49 +1,51 @@
-id: mnc_livestock_report
+id: livestock_monitoring
 requirements:
-  - name: ecoscope-workflows-core
-    version: "0.22.18.*"
-    channel: https://repo.prefix.dev/ecoscope-workflows/
-
-  - name: ecoscope-workflows-ext-ecoscope
-    version: "0.22.18.*"
+  - name: ecoscope-platform
+    version: ">=2.15.0, <2.16.0"
     channel: https://repo.prefix.dev/ecoscope-workflows/
 
   - name: ecoscope-workflows-ext-custom
-    version: "0.0.49.*"
+    version: "0.1.0rc14.*"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-ste
-    version: "0.0.20.*"
-    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
-
-  - name: ecoscope-workflows-ext-mep
-    version: "0.0.19.*"
-    channel: https://repo.prefix.dev/ecoscope-workflows-custom/
-
-  - name: ecoscope-workflows-ext-big-life
-    version: "0.0.11.*"
+    version: "0.0.0rc1.*"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
 
   - name: ecoscope-workflows-ext-mnc
-    version: "0.0.10.*"
+    version: "1.0.0.*"
     channel: https://repo.prefix.dev/ecoscope-workflows-custom/
-    
+
+  - name: pydeck
+    version: 0.9.2
+    channel: conda-forge
+
+  - name: opentelemetry-sdk
+    version: ">=1.20.0,<2.0.0"
+    channel: conda-forge
+
+task-instance-defaults:
+  skipif:
+    conditions: 
+      - any_is_empty_df 
+      - any_dependency_skipped 
+
 workflow:
-  - name: Set workflow details
+  - name: Set Workflow Details
     id: workflow_details
     task: set_workflow_details
 
-  - name: Time range
+  - name: Time Range
     id: time_range
     task: set_time_range
       
-  - name: Set groupers
+  - name: Set Groupers
     id: groupers
     task: set_groupers
     partial: 
       groupers: []
 
-  - name: Connect to ER 
+  - name: Connect to EarthRanger
     id: er_client_name
     task: set_er_connection
 
@@ -63,7 +65,7 @@ workflow:
 
   - name: Download MNC community conservancy boundaries
     id: persist_mnc_gpkg
-    task: fetch_and_persist_file
+    task: ecoscope_workflows_ext_ste.tasks.io.fetch_and_persist_file
     partial:
       url: https://www.dropbox.com/scl/fi/14rcy4lkwp7xgewj3xf7k/mnc_conservancy.gpkg?rlkey=mtqo7ivxrnvjonm2z1zez6h6f&st=gtdi4vv0&dl=0
       output_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
@@ -73,7 +75,7 @@ workflow:
   
   - name: Download MNC Parcels gpkg
     id: download_mnc_parcels
-    task: fetch_and_persist_file
+    task: ecoscope_workflows_ext_ste.tasks.io.fetch_and_persist_file
     partial:
       url: https://www.dropbox.com/scl/fi/33rdzy896rh91gtkfs2j3/mnc_across_the_river_parcels.gpkg?rlkey=xima1v0rozc0h9h78esfogx6q&st=o3gkk5p1&dl=0
       output_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
@@ -81,209 +83,136 @@ workflow:
       retries: 3
       unzip: false
   
-  - name : Load community conservancy boundaries  
-    id: load_comm_shp 
+  - name : Load community conservancy boundaries
+    id: load_comm_shp
     task: load_df
     partial:
       file_path: ${{ workflow.persist_mnc_gpkg.return }}
       layer: null
       deserialize_json: false
 
-  - name: Split loaded gdf by various grazing zones and blocks
-    id: split_gdf_by_zone
-    task: split_gdf_by_column
-    partial:  
+  - name: Fix invalid geometries in community boundaries
+    id: fix_comm_geom
+    task: ecoscope_workflows_ext_mnc.tasks.transformation.fix_invalid_geometries
+    partial:
       gdf: ${{ workflow.load_comm_shp.return }}
-      column: grazing_zone
 
-  - name: Annotate community conservancy gpkg with geom type 
-    id: annotate_comm_gdf_dict 
-    task: ecoscope_workflows_ext_ste.tasks.annotate_gdf_dict_with_geom_type
+  - name: Filter conservancy boundary only
+    id: filter_conservancy_boundary
+    task: filter_df
     partial:
-      gdf_dict: ${{ workflow.split_gdf_by_zone.return }}
+      df: ${{ workflow.fix_comm_geom.return }}
+      column_name: grazing_zone
+      op: equal
+      value: Conservancy
+      reset_index: true
 
-  - name: Create styled layers from split mnc zones
-    id: create_mnc_styled_layers
-    task: create_deckgl_layers_from_gdf_dict
+  - name: Filter to Mara North Conservancy
+    id: filter_mara_north
+    task: filter_df
     partial:
-      gdf_dict: ${{ workflow.annotate_comm_gdf_dict.return }}
-      styles:
-        Conservancy:
-          extruded: false
-          get_fill_color: [119, 136, 153]
-          get_line_color: [119, 136, 153]
-          get_line_width: 1.55
-          stroked: true
-          filled: false
-          opacity: 0.70
+      df: ${{ workflow.fix_comm_geom.return }}
+      column_name: name
+      op: equal
+      value: Mara North Conservancy
+      reset_index: true
 
-        Conservancy Herd Zone:
-          extruded: false
-          get_fill_color: [173, 255, 47]
-          get_line_color: [173, 255, 47]
-          get_line_width: 1.25
-          stroked: true
-          filled: true
-          opacity: 0.10
-
-        Grazing Zone 1:
-          extruded: false
-          get_fill_color: [85, 107, 47]
-          get_line_color: [85, 107, 47]
-          get_line_width: 1.25
-          stroked: true
-          filled: true
-          opacity: 0.10
-
-        Grazing Zone 2:
-          extruded: false
-          get_fill_color: [0, 139, 139]
-          get_line_color: [0, 139, 139]
-          get_line_width: 1.25
-          stroked: true
-          filled: true
-          opacity: 0.10
-
-        Grazing Zone 3:
-          extruded: false
-          get_fill_color: [0, 100, 0]
-          get_line_color: [0, 100, 0]
-          get_line_width: 1.25
-          stroked: true
-          filled: true
-          opacity: 0.10
-
-        Grazing Zone 4:
-          extruded: false
-          get_fill_color: [143, 188, 139]
-          get_line_color: [143, 188, 139]
-          get_line_width: 1.25
-          stroked: true
-          filled: true
-          opacity: 0.70
-
-      legends:
-        title: Legend
-        values: 
-          - label: Conservancy Boundaries
-            color: "#778899"
-          - label: Conservancy Herd Zone
-            color: "#adff2f"
-          - label: Grazing Zone 1
-            color: "#556b2f"
-          - label: Grazing Zone 2
-            color: "#008b8b"
-          - label: Grazing Zone 3
-            color: "#006400"
-          - label: Grazing Zone 4
-            color: "#8fbc8b"
-
-  - name: Create conservancy boundaries
-    id: create_conservancy_boundaries
-    task: create_deckgl_layers_from_gdf_dict
+  - name: Filter grazing zones excluding conservancy
+    id: filter_grazing_zones
+    task: filter_df
     partial:
-      gdf_dict: ${{ workflow.annotate_comm_gdf_dict.return }}
-      styles:
-        Conservancy:
-          extruded: false
-          get_fill_color: [119, 136, 153]
-          get_line_color: [119, 136, 153]
-          get_line_width: 1.55
-          stroked: true
-          filled: false
-          opacity: 0.70
-
-      legends:
-        title: Legend 
-        values: 
-          - label: Conservancy Boundaries
-            color: "#778899"
-
-  - name: Create conservancy gdf from split dict 
-    id: conservancy_gdf
-    task: create_gdf_from_dict
-    partial: 
-      gdf_dict: ${{ workflow.split_gdf_by_zone.return }}
-      key: Conservancy
-
-  - name: Create group ranch gdf from loaded gdf
-    id: overall_grazing_zones
-    task: filter_df 
-    partial: 
+      df: ${{ workflow.fix_comm_geom.return }}
       column_name: grazing_zone
       op: ne
-      value: Conservancy 
-      df: ${{ workflow.load_comm_shp.return }}
-      reset_index: false
+      value: Conservancy
+      reset_index: true
 
-  - name: Create conservancy text layers here 
-    id: conservancy_text_layer
-    task: create_custom_text_layer 
-    partial: 
-      geodataframe: ${{ workflow.conservancy_gdf.return }}
-      layer_style: 
-        get_text: name 
-        get_color: [0,0,0,255]
-        
-        get_size: 1500
-        size_units: meters 
-        size_min_pixels: 70 #65 
-        size_max_pixels: 100
-        size_scale: 2.25 
+  - name: Color grazing zones by unique value
+    id: color_grazing_zones
+    task: apply_color_map
+    partial:
+      df: ${{ workflow.filter_grazing_zones.return }}
+      input_column_name: grazing_zone
+      output_column_name: zone_color
+      colormap: GnBu #Greens
 
-        font_family: Calibri 
-        font_weight: "normal" 
-        get_text_anchor: middle 
-        get_alignment_baseline: center
-        billboard: true 
+  - name: Build grazing zones legend values
+    id: grazing_zone_legend_values
+    task: ecoscope_workflows_ext_mnc.tasks.transformation.build_legend_values_from_column
+    partial:
+      df: ${{ workflow.color_grazing_zones.return }}
+      label_column: grazing_zone
+      color_column: zone_color
+      sort: ascending
 
-        background_padding: [4,8]
-        pickable: true 
-        auto_highlight: false 
-      use_centroid: true 
-      legend: null 
-
-  - name: Load mnc parcels 
-    id: load_mnc_parcels 
-    task: load_df 
+  - name: Load MNC parcels
+    id: load_mnc_parcels
+    task: load_df
     partial:
       file_path: ${{ workflow.download_mnc_parcels.return }}
       layer: null
       deserialize_json: false
 
-  - name: Assign geom type to mnc parcels 
-    id: assign_mnc_geom
-    task: ecoscope_workflows_ext_ste.tasks.get_gdf_geom_type
+  - name: Create conservancy boundary layer
+    id: create_conservancy_layer
+    task: ecoscope_workflows_ext_custom.tasks.results.create_geojson_layer
     partial:
-      gdf: ${{ workflow.load_mnc_parcels.return }}
-
-  - name: Create mnc parcels layers 
-    id: create_mnc_parcels_layers 
-    task: create_deckgl_layer_from_gdf 
-    partial:
-      gdf: ${{ workflow.assign_mnc_geom.return }}
-      style: 
-        extruded: false
-        get_fill_color: [189, 183, 107]
-        get_line_color: [189, 183, 107]
-        get_line_width: 1.55
-        stroked: true 
-        filled: true 
-        opacity: 0.15
-      legend: 
+      geodataframe: ${{ workflow.filter_conservancy_boundary.return }}
+      data_url: null
+      layer_style:
+        filled: false
+        stroked: true
+        get_line_color: [169, 169, 169, 255]
+        get_line_width: 1.75
+      legend:
         title: ""
-        values: 
+        values:
+          - label: Conservancy Boundary
+            color: "#a9a9a9"
+        sort: null
+        label_suffix: null
+
+  - name: Create grazing zones layer
+    id: create_grazing_zones_layer
+    task: ecoscope_workflows_ext_custom.tasks.results.create_geojson_layer
+    partial:
+      geodataframe: ${{ workflow.color_grazing_zones.return }}
+      data_url: null
+      layer_style:
+        filled: true
+        stroked: true
+        opacity: 0.5
+        get_fill_color: zone_color
+        get_line_color: zone_color
+        get_line_width: 1.5
+      legend:
+        title: Map Layers
+        values: ${{ workflow.grazing_zone_legend_values.return }}
+
+  - name: Create parcels layer
+    id: create_parcels_layer
+    task: ecoscope_workflows_ext_custom.tasks.results.create_geojson_layer
+    partial:
+      geodataframe: ${{ workflow.load_mnc_parcels.return }}
+      data_url: null
+      layer_style:
+        filled: true
+        stroked: true
+        get_fill_color: [189, 183, 107, 60]
+        get_line_color: [189, 183, 107, 255]
+        get_line_width: 1.5
+      legend:
+        title: ""
+        values:
           - label: Parcels
             color: "#bdb76b"
+        sort: null
+        label_suffix: null
 
   # Retrieve livestock report events
-  - name: Retrieve all events 
+  - name: Retrieve Livestock Events Only 
     id: get_events_data
     task: get_events
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       client: ${{ workflow.er_client_name.return }}
       time_range: ${{ workflow.time_range.return }}
@@ -310,15 +239,12 @@ workflow:
       include_related_events: false
       include_null_geometry: false
       include_display_values: false
+      force_point_geometry: true 
 
   # Extract date
   - name: Extract date from events data
     id: extract_event_date
     task: extract_column_as_type
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.get_events_data.return }}
       column_name: time
@@ -328,10 +254,6 @@ workflow:
   - name: Add temporal index on events
     id: events_temporal
     task: add_temporal_index
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.extract_event_date.return }}
       time_col: date
@@ -342,10 +264,6 @@ workflow:
   - name: Retrieve mobile boma events only 
     id: filter_mobile_boma 
     task: filter_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.events_temporal.return }}
       column_name: event_type
@@ -356,10 +274,6 @@ workflow:
   - name: Retrieve livestock predation events only 
     id: filter_livestock_predation 
     task: filter_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.events_temporal.return }}
       column_name: event_type
@@ -370,10 +284,6 @@ workflow:
   - name: Filter cattle count events only 
     id: filter_cattle_counts 
     task: filter_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.events_temporal.return }}
       column_name: event_type
@@ -384,10 +294,6 @@ workflow:
   - name: Filter out illegal grazing events only 
     id: filter_illegal_grazing 
     task: filter_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.events_temporal.return }}
       column_name: event_type
@@ -398,10 +304,6 @@ workflow:
   - name: Process mobile boma event details 
     id: process_mobile_boma 
     task: process_events_details 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.filter_mobile_boma.return }}
       client: ${{ workflow.er_client_name.return }}
@@ -411,10 +313,6 @@ workflow:
   - name: Normalize mobile boma events 
     id: normalize_mobile_boma 
     task: normalize_json_column
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.process_mobile_boma.return }}
       column: event_details 
@@ -424,10 +322,6 @@ workflow:
   - name: Drop mobile boma column prefix 
     id: drop_mobile_prefix 
     task: drop_column_prefix 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.normalize_mobile_boma.return }}
       prefix: event_details__
@@ -436,10 +330,6 @@ workflow:
   - name: Process livestock predation event details 
     id: process_livestock_preds 
     task: process_events_details 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.filter_livestock_predation.return }}
       client: ${{ workflow.er_client_name.return }}
@@ -449,10 +339,6 @@ workflow:
   - name: Normalize livestock predation events 
     id: normalize_livestock_preds
     task: normalize_json_column
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.process_livestock_preds.return }}
       column: event_details 
@@ -462,10 +348,6 @@ workflow:
   - name: Drop livestock predation column prefix 
     id: drop_predation_prefix 
     task: drop_column_prefix 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.normalize_livestock_preds.return }}
       prefix: event_details__
@@ -474,10 +356,6 @@ workflow:
   - name: Process cattle count event details 
     id: process_cattle_counts 
     task: process_events_details 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.filter_cattle_counts.return }}
       client: ${{ workflow.er_client_name.return }}
@@ -487,10 +365,6 @@ workflow:
   - name: Normalize cattle count events 
     id: normalize_cattle_count
     task: normalize_json_column
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.process_cattle_counts.return }}
       column: event_details 
@@ -500,10 +374,6 @@ workflow:
   - name: Drop cattle count column prefix 
     id: drop_cattle_prefix 
     task: drop_column_prefix 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.normalize_cattle_count.return }}
       prefix: event_details__
@@ -512,10 +382,6 @@ workflow:
   - name: Process illegal grazing event details 
     id: process_illegal_grazing
     task: process_events_details 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.filter_illegal_grazing.return }}
       client: ${{ workflow.er_client_name.return }}
@@ -525,10 +391,6 @@ workflow:
   - name: Normalize illegal grazing events 
     id: normalize_illegal_grazing
     task: normalize_json_column
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.process_illegal_grazing.return }}
       column: event_details 
@@ -538,10 +400,6 @@ workflow:
   - name: Drop illegal grazing column prefix 
     id: drop_illegal_prefix 
     task: drop_column_prefix 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.normalize_illegal_grazing.return }}
       prefix: event_details__
@@ -550,10 +408,6 @@ workflow:
   - name: Map mobile boma columns 
     id: map_mobile_boma 
     task: map_columns 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.drop_mobile_prefix.return }}
       drop_columns: []
@@ -574,10 +428,6 @@ workflow:
   - name: Summarize mobile boma events 
     id: summarize_mobile_boma 
     task: summarize_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.map_mobile_boma.return }}
       groupby_cols:
@@ -589,41 +439,21 @@ workflow:
           decimal_places: 0 
       reset_index: true 
   
-  - name: Add totals row on mobile boma summary table 
-    id: add_mobile_summary_row 
-    task: add_totals_row 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      label_col: 
-        - date 
-      label: Total 
-      df: ${{ workflow.summarize_mobile_boma.return }}
-  
   - name: Persist mobile boma summary table
     id: persist_boma_summary
     task: persist_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       filetype: csv
-      df: ${{ workflow.add_mobile_summary_row.return }}
+      df: ${{ workflow.summarize_mobile_boma.return }}
       filename: mobile_boma_movement_summary_table 
 
   # Draw mobile boma map 
   - name: Generate mobile boma point layers
     id: generate_mobile_layers
-    task: create_scatterplot_layer
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_custom.tasks.results.create_scatterplot_layer
     partial:
+      data_url: null
       layer_style:
         get_fill_color: [0, 0, 128]
         get_line_color: [0, 0, 128]
@@ -631,50 +461,46 @@ workflow:
         opacity: 0.55
         stroked: true
       legend:
-        title: Boma Movements
+        title: Movements
         values: 
           - label: Boma movement
             color: "#000080"
         sort: null
         label_suffix: null
-      data_url: null
       geodataframe: ${{ workflow.map_mobile_boma.return }} 
   
-  # global zoom value 
-  - name: Global map zoom value
-    id: global_zoom_value
-    task: view_state_deck_gdf
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial:
-      pitch: 0
-      bearing: 0
-      gdf: ${{ workflow.overall_grazing_zones.return }}
+  - title: Map Zoom & Extent
+    type: task-group
+    description: Calculate the geographic extent of the movement tracks and determine an appropriate zoom level and center point for the map. This ensures that all tracks are visible and well-framed when the map is rendered.
+    tasks:
+      - name: null
+        id: zoom_to_envelope
+        task: ecoscope_workflows_ext_ste.tasks.spatial_operations.envelope_gdf
+        partial:
+          gdf: ${{ workflow.filter_mara_north.return }}
 
-  - name: Combine styled layers with mobile boma 
+      - name: Zoom view to gdf extent
+        id: gdf_image_extent
+        task: ecoscope_workflows_ext_ste.tasks.spatial_operations.compute_view_state_from_gdf
+        partial:
+          pitch: 0
+          bearing: 0
+          max_zoom: 15
+          gdf: ${{ workflow.zoom_to_envelope.return }}
+
+  - name: Combine styled layers with mobile boma
     id: combine_custom_mobile_boma
-    task: combine_deckgl_map_layers
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_ste.tasks.spatial_operations.combine_deckgl_map_layers
     partial:
-      static_layers: 
-        - ${{ workflow.create_mnc_styled_layers.return }}
-        - ${{ workflow.create_mnc_parcels_layers.return }}
-        - ${{ workflow.conservancy_text_layer.return }}
-
+      static_layers:
+        - ${{ workflow.create_grazing_zones_layer.return }}
+        - ${{ workflow.create_parcels_layer.return }}
+        - ${{ workflow.create_conservancy_layer.return }}
       grouped_layers: ${{ workflow.generate_mobile_layers.return }}
 
-  - name: Draw mobile boma events map 
+  - name: Draw mobile boma events map
     id: draw_mobile_boma
-    task: draw_map
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_custom.tasks.results.draw_map
     partial:
       tile_layers: ${{ workflow.configure_base_maps.return }}
       static: false
@@ -683,27 +509,27 @@ workflow:
       legend_style:
         placement: "bottom-right"
       geo_layers: ${{ workflow.combine_custom_mobile_boma.return }}
-      view_state: ${{ workflow.global_zoom_value.return }} 
+      view_state: ${{ workflow.gdf_image_extent.return }}
 
   - name: Persist mobile boma map HTML paths
     id: persist_mobile_boma_urls
     task: persist_text
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       text: ${{ workflow.draw_mobile_boma.return }}
       filename: boma_movement_map.html
+      filename_suffix: null
+
+  - name: Create mobile boma map widget
+    id: mobile_boma_map_widget
+    task: create_map_widget_single_view
+    partial:
+      title: "Mobile Boma Movement Map"
+      data: ${{ workflow.persist_mobile_boma_urls.return }}
 
   - name: Convert mobile boma map to png
     id: convert_mobile_boma_png
     task: html_to_png
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       output_dir: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       html_path: ${{ workflow.persist_mobile_boma_urls.return }}
@@ -716,48 +542,105 @@ workflow:
   - name: Map cattle count columns 
     id: map_cattle_count 
     task: map_columns
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.drop_cattle_prefix.return }}
-      drop_columns: []
+      drop_columns: [
+        "total_cattle_counted_from_all_zones"
+        ]
       retain_columns: [
         "date",
         "# cattle in Zone 1 mobile boma",
         "# cattle in Zone 2/3 mobile boma",
         "# cattle in Zone 4",
-        "total_cattle_counted_from_all_zones"
+
         ]
       rename_columns: {
         "# cattle in Zone 1 mobile boma": "zone_1",
         "# cattle in Zone 2/3 mobile boma": "zone_2_3",
         "# cattle in Zone 4":"zone_4",
-        "total_cattle_counted_from_all_zones":"total_count"
         }
       raise_if_not_found: false
 
-  - name: Persist cattle count table 
-    id: persist_cattle_count 
-    task: persist_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+
+  - name: Convert all values to numeric 
+    id: convert_cols_numeric
+    task: convert_column_values_to_numeric
+    partial: 
+      df: ${{ workflow.map_cattle_count.return }}
+      columns: 
+        - "zone_1"
+        - "zone_2_3"
+        - "zone_4"
+  
+  - name: Compute total count on all zone columns 
+    id: compute_total_count 
+    task: ecoscope_workflows_ext_mnc.tasks.aggregation.apply_arithmetic_operation_over_rows
+    partial:  
+      df: ${{ workflow.convert_cols_numeric.return }}
+      columns: 
+        - "zone_1"
+        - "zone_2_3"
+        - "zone_4"
+      operation: add
+      output_column: total 
+
+  - name: Rename cattle count table columns for display
+    id: rename_cattle_count_display
+    task: map_columns
+    partial:
+      df: ${{ workflow.compute_total_count.return }}
+      drop_columns: []
+      retain_columns: []
+      rename_columns: {
+        "date": "Date",
+        "zone_1": "Zone 1",
+        "zone_2_3": "Zone 2/3",
+        "zone_4": "Zone 4",
+        "total": "Total"
+        }
+      raise_if_not_found: false
+
+  - name: Persist cattle count table
+    id: persist_cattle_count
+    task: persist_df
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       filetype: csv
-      df: ${{ workflow.map_cattle_count.return }}
+      df: ${{ workflow.rename_cattle_count_display.return }}
       filename: total_cattle_count_summary_table
-  
+
+  - name: Draw cattle count summary table
+    id: cattle_count_table_html
+    task: draw_table
+    partial:
+      dataframe: ${{ workflow.rename_cattle_count_display.return }}
+      columns: null
+      table_config:
+        enable_sorting: true
+        enable_filtering: true
+        enable_download: false
+        hide_header: false
+      widget_id: "Total Cattle Count Summary"
+
+  - name: Save cattle count summary table (HTML)
+    id: cattle_count_table_html_url
+    task: persist_text
+    partial:
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      text: ${{ workflow.cattle_count_table_html.return }}
+      filename: total_cattle_count_summary_table.html
+      filename_suffix: null
+
+  - name: Create cattle count summary table widget
+    id: cattle_count_table_widget
+    task: create_table_widget_single_view
+    partial:
+      title: "Total Cattle Count Summary"
+      data: ${{ workflow.cattle_count_table_html_url.return }}
+
   - name: Map livestock predation events 
     id: map_livestock_predation 
     task: map_columns
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.drop_predation_prefix.return }}
       drop_columns: [] 
@@ -776,10 +659,6 @@ workflow:
   - name: Summarize livestock predation events 
     id: summarize_predation_events 
     task: summarize_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.map_livestock_predation.return }}
       groupby_cols:
@@ -790,53 +669,78 @@ workflow:
           column: id 
           decimal_places: 0 
       reset_index: true 
-  
-  - name: Add totals row on livestock predation events summary table 
-    id: add_predation_summary_row 
-    task: add_totals_row 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
-    partial: 
-      label_col: 
-        - date 
-      label: Total 
+
+  - name: Rename livestock predation summary table columns for display
+    id: rename_predation_summary_display
+    task: map_columns
+    partial:
       df: ${{ workflow.summarize_predation_events.return }}
-  
+      drop_columns: []
+      retain_columns: []
+      rename_columns: {
+        "date": "Date",
+        "livestock_predation_events": "Livestock Predation Events"
+        }
+      raise_if_not_found: false
+
   - name: Persist livestock predation summary table
     id: persist_predation_summary
-    task: persist_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: persist_df
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       filetype: csv
-      df: ${{ workflow.add_predation_summary_row.return }}
+      df: ${{ workflow.rename_predation_summary_display.return }}
       filename: total_livestock_predation_summary_table
+
+  - name: Draw livestock predation summary table
+    id: predation_summary_table_html
+    task: draw_table
+    partial:
+      dataframe: ${{ workflow.rename_predation_summary_display.return }}
+      columns: null
+      table_config:
+        enable_sorting: true
+        enable_filtering: true
+        enable_download: false
+        hide_header: false
+      widget_id: "Livestock Predation Summary"
+
+  - name: Save livestock predation summary table (HTML)
+    id: predation_summary_table_html_url
+    task: persist_text
+    partial:
+      root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
+      text: ${{ workflow.predation_summary_table_html.return }}
+      filename: livestock_predation_summary_table.html
+      filename_suffix: null
+
+  - name: Create livestock predation summary table widget
+    id: predation_summary_table_widget
+    task: create_table_widget_single_view
+    partial:
+      title: "Livestock Predation Summary"
+      data: ${{ workflow.predation_summary_table_html_url.return }}
+
+  - name: Format livestock species column 
+    id: capitalize_livestock_species 
+    task: format_text_column 
+    partial: 
+      df:  ${{ workflow.map_livestock_predation.return }}
+      column: "Livestock Species"
+      method: "capitalize"
 
   - name: Apply colormap to livestock predation events
     id: apply_livestock_colormap
     task: apply_color_map
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       input_column_name: "Livestock Species"
       output_column_name: colors
       colormap: Set3
-      df: ${{ workflow.map_livestock_predation.return }}
+      df: ${{ workflow.capitalize_livestock_species.return }}
 
   - name: Generate livestock predation point layers
     id: generate_livestock_layers
-    task: create_scatterplot_layer
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_custom.tasks.results.create_scatterplot_layer
     partial:
       layer_style:
         get_fill_color: colors
@@ -853,28 +757,19 @@ workflow:
       data_url: null
       geodataframe: ${{ workflow.apply_livestock_colormap.return }}
 
-  - name: Combine styled layers with livestock predation events 
+  - name: Combine styled layers with livestock predation events
     id: combine_custom_livestock
-    task: combine_deckgl_map_layers
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_ste.tasks.spatial_operations.combine_deckgl_map_layers
     partial:
-      static_layers: 
-        - ${{ workflow.create_conservancy_boundaries.return }}
-        - ${{ workflow.create_mnc_parcels_layers.return }}
-        - ${{ workflow.conservancy_text_layer.return }}
-
+      static_layers:
+        - ${{ workflow.create_grazing_zones_layer.return }}
+        - ${{ workflow.create_parcels_layer.return }}
+        - ${{ workflow.create_conservancy_layer.return }}
       grouped_layers: ${{ workflow.generate_livestock_layers.return }}
 
   - name: Draw livestock predation map
     id: draw_livestock_map
-    task: draw_map
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_custom.tasks.results.draw_map
     partial:
       tile_layers: ${{ workflow.configure_base_maps.return }}
       static: false
@@ -883,32 +778,32 @@ workflow:
       legend_style:
         placement: "bottom-right"
       geo_layers: ${{ workflow.combine_custom_livestock.return }}
-      view_state: 
-        longitude: 35.2092935880001
-        latitude: -1.257840580999955
-        zoom: 9.75
-        pitch: 0 
-        bearing: 0 
+      view_state: ${{ workflow.gdf_image_extent.return }}
+        # longitude: 35.2092935880001
+        # latitude: -1.257840580999955
+        # zoom: 9.75
+        # pitch: 0 
+        # bearing: 0 
 
   - name: Persist livestock predation map HTML paths
     id: persist_livestock_urls
     task: persist_text
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       text: ${{ workflow.draw_livestock_map.return }}
-      filename: livestock_predation_events.html 
+      filename: livestock_predation_events.html
+      filename_suffix: null
+
+  - name: Create livestock predation map widget
+    id: livestock_predation_map_widget
+    task: create_map_widget_single_view
+    partial:
+      title: "Livestock Predation Events Map"
+      data: ${{ workflow.persist_livestock_urls.return }}
 
   - name: Convert livestock map to png
     id: convert_livestock_png
     task: html_to_png
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       output_dir: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       html_path: ${{ workflow.persist_livestock_urls.return }}
@@ -921,10 +816,6 @@ workflow:
   - name: Map livestock predation for summary table 
     id: map_livestock_summary 
     task: map_columns
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial: 
       df: ${{ workflow.map_livestock_predation.return }}
       drop_columns: [] 
@@ -943,27 +834,17 @@ workflow:
 
   - name: Replace nulls on livestock predator table with unknown
     id: replace_livestock_nulls
-    task: replace_empty_strings_in_columns #replace_missing_with_label
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: fill_missing_values
     partial:
       df: ${{ workflow.map_livestock_summary.return }}
-      columns: 
+      subset: 
         - suspected_predator
         - livestock_species
-      replacement: Unknown 
-      strip_whitespace: false
-      missing: ignore
+      value: Unknown 
   
   - name: Map others with Unknown 
     id: map_livestock_unknown
-    task: map_column_values
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: replace_column_values
     partial: 
       df: ${{ workflow.replace_livestock_nulls.return }}
       columns: 
@@ -971,30 +852,21 @@ workflow:
       value_map: 
         Other (specify in comments): Unknown
       inplace: true 
+      errors: "ignore"
 
   - name: Convert livestock_affected col to int 
     id: convert_livestock_int
-    task: coerce_columns_to_int #convert_to_int
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_mnc.tasks.transformation.convert_columns_to_int
     partial: 
       df: ${{ workflow.map_livestock_unknown.return }}
       columns: 
         - total_livestock_affected
       errors: coerce
       fill_value: 0
-      missing: ignore 
-      nullable: true 
 
   - name: Persist livestock summary table 
     id: persist_livestock_summary
     task: persist_df 
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       filetype: csv
@@ -1004,10 +876,6 @@ workflow:
   - name: Map illegal grazing Events  
     id: map_illegal_grazing 
     task: map_columns
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       df: ${{ workflow.drop_illegal_prefix.return }}
       drop_columns: []
@@ -1025,11 +893,7 @@ workflow:
 # Draw illegal grazing map 
   - name: Generate illegal grazing point layers
     id: generate_illegal_layers
-    task: create_scatterplot_layer
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_custom.tasks.results.create_scatterplot_layer
     partial:
       layer_style:
         get_fill_color: [0, 0, 128]
@@ -1038,7 +902,7 @@ workflow:
         opacity: 0.55
         stroked: true
       legend:
-        title: Illegal grazing
+        title: Activity
         values: 
           - label: Illegal grazing
             color: "#000080"
@@ -1049,25 +913,17 @@ workflow:
   
   - name: Combine styled layers with illegal grazing layer
     id: combine_custom_illegal
-    task: combine_deckgl_map_layers
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_ste.tasks.spatial_operations.combine_deckgl_map_layers
     partial:
-      static_layers: 
-        - ${{ workflow.create_mnc_styled_layers.return }}
-        - ${{ workflow.conservancy_text_layer.return }}
-
+      static_layers:
+        - ${{ workflow.create_grazing_zones_layer.return }}
+        - ${{ workflow.create_parcels_layer.return }}
+        - ${{ workflow.create_conservancy_layer.return }}
       grouped_layers: ${{ workflow.generate_illegal_layers.return }}
 
-  - name: Draw illegal grazing events map 
+  - name: Draw illegal grazing events map
     id: draw_illegal_grazing
-    task: draw_map
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
+    task: ecoscope_workflows_ext_custom.tasks.results.draw_map
     partial:
       tile_layers: ${{ workflow.configure_base_maps.return }}
       static: false
@@ -1076,27 +932,26 @@ workflow:
       legend_style:
         placement: "bottom-right"
       geo_layers: ${{ workflow.combine_custom_illegal.return }}
-      view_state: ${{ workflow.global_zoom_value.return }} 
+      view_state: ${{ workflow.gdf_image_extent.return }}
 
   - name: Persist illegal grazing map HTML paths
     id: persist_illegal_urls
     task: persist_text
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       root_path: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       text: ${{ workflow.draw_illegal_grazing.return }}
       filename: illegal_grazing_map.html
 
+  - name: Create illegal grazing map widget
+    id: illegal_grazing_map_widget
+    task: create_map_widget_single_view
+    partial:
+      title: "Illegal Grazing Events Map"
+      data: ${{ workflow.persist_illegal_urls.return }}
+
   - name: Convert illegal grazing map to png
     id: convert_illegal_png
     task: html_to_png
-    skipif:
-      conditions:
-        - any_is_empty_df
-        - any_dependency_skipped
     partial:
       output_dir: ${{ env.ECOSCOPE_WORKFLOWS_RESULTS }}
       html_path: ${{ workflow.persist_illegal_urls.return }}
@@ -1111,7 +966,12 @@ workflow:
     task: gather_dashboard
     partial:
       details: ${{ workflow.workflow_details.return}}
-      widgets: []
+      widgets:
+        - ${{ workflow.mobile_boma_map_widget.return }}
+        - ${{ workflow.livestock_predation_map_widget.return }}
+        - ${{ workflow.illegal_grazing_map_widget.return }}
+        - ${{ workflow.cattle_count_table_widget.return }}
+        - ${{ workflow.predation_summary_table_widget.return }}
       time_range: ${{ workflow.time_range.return}}
       groupers: ${{ workflow.groupers.return }}
-      
+
