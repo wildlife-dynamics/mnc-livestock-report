@@ -99,6 +99,9 @@ from ecoscope_workflows_ext_custom.tasks.results import (
 )
 from ecoscope_workflows_ext_custom.tasks.results import draw_map as draw_map_1
 from ecoscope_workflows_ext_custom.tasks.transformation import (
+    drop_null_geometry as drop_null_geometry_1,
+)
+from ecoscope_workflows_ext_custom.tasks.transformation import (
     format_text_column as format_text_column,
 )
 from ecoscope_workflows_ext_mnc.tasks.aggregation import (
@@ -1101,6 +1104,27 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
         .call()
     )
 
+    drop_null_mobile = (
+        task(drop_null_geometry_1)
+        .validate()
+        .set_task_instance_id("drop_null_mobile")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            gdf=map_mobile_boma,
+            geometry_column="geometry",
+            **(params.get("drop_null_mobile") or {}),
+        )
+        .call()
+    )
+
     generate_mobile_layers = (
         task(create_scatterplot_layer_1)
         .validate()
@@ -1129,7 +1153,7 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
                 "sort": None,
                 "label_suffix": None,
             },
-            geodataframe=map_mobile_boma,
+            geodataframe=drop_null_mobile,
             **(params.get("generate_mobile_layers") or {}),
         )
         .call()
@@ -1728,6 +1752,27 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
         .call()
     )
 
+    drop_null_livestock = (
+        task(drop_null_geometry_1)
+        .validate()
+        .set_task_instance_id("drop_null_livestock")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            gdf=apply_livestock_colormap,
+            geometry_column="geometry",
+            **(params.get("drop_null_livestock") or {}),
+        )
+        .call()
+    )
+
     generate_livestock_layers = (
         task(create_scatterplot_layer_1)
         .validate()
@@ -1757,7 +1802,7 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
                 "label_suffix": None,
             },
             data_url=None,
-            geodataframe=apply_livestock_colormap,
+            geodataframe=drop_null_livestock,
             **(params.get("generate_livestock_layers") or {}),
         )
         .call()
@@ -2041,6 +2086,27 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
         .call()
     )
 
+    drop_null_grazing = (
+        task(drop_null_geometry_1)
+        .validate()
+        .set_task_instance_id("drop_null_grazing")
+        .handle_errors()
+        .with_tracing()
+        .skipif(
+            conditions=[
+                any_is_empty_df,
+                any_dependency_skipped,
+            ],
+            unpack_depth=1,
+        )
+        .partial(
+            gdf=map_illegal_grazing,
+            geometry_column="geometry",
+            **(params.get("drop_null_grazing") or {}),
+        )
+        .call()
+    )
+
     generate_illegal_layers = (
         task(create_scatterplot_layer_1)
         .validate()
@@ -2069,7 +2135,7 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
                 "label_suffix": None,
             },
             data_url=None,
-            geodataframe=map_illegal_grazing,
+            geodataframe=drop_null_grazing,
             **(params.get("generate_illegal_layers") or {}),
         )
         .call()

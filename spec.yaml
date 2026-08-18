@@ -449,6 +449,13 @@ workflow:
       filename: mobile_boma_movement_summary_table 
 
   # Draw mobile boma map 
+  - name: Drop null geometry from mobile boma 
+    id: drop_null_mobile
+    task: ecoscope_workflows_ext_custom.tasks.transformation.drop_null_geometry 
+    partial: 
+      gdf: ${{ workflow.map_mobile_boma.return }} 
+      geometry_column: "geometry"
+
   - name: Generate mobile boma point layers
     id: generate_mobile_layers
     task: ecoscope_workflows_ext_custom.tasks.results.create_scatterplot_layer
@@ -467,7 +474,7 @@ workflow:
             color: "#000080"
         sort: null
         label_suffix: null
-      geodataframe: ${{ workflow.map_mobile_boma.return }} 
+      geodataframe: ${{ workflow.drop_null_mobile.return }} 
   
   - title: Map Zoom & Extent
     type: task-group
@@ -737,6 +744,13 @@ workflow:
       output_column_name: colors
       colormap: Set3
       df: ${{ workflow.capitalize_livestock_species.return }}
+  
+  - name: Drop null geometry from livestock predation points 
+    id: drop_null_livestock
+    task: ecoscope_workflows_ext_custom.tasks.transformation.drop_null_geometry 
+    partial: 
+      gdf: ${{ workflow.apply_livestock_colormap.return }}
+      geometry_column: "geometry"
 
   - name: Generate livestock predation point layers
     id: generate_livestock_layers
@@ -755,7 +769,7 @@ workflow:
         sort: ascending
         label_suffix: null
       data_url: null
-      geodataframe: ${{ workflow.apply_livestock_colormap.return }}
+      geodataframe: ${{ workflow.drop_null_livestock.return }}
 
   - name: Combine styled layers with livestock predation events
     id: combine_custom_livestock
@@ -891,6 +905,13 @@ workflow:
       raise_if_not_found: false 
 
 # Draw illegal grazing map 
+  - name: Drop null geometry from illegal grazing points
+    id: drop_null_grazing
+    task: ecoscope_workflows_ext_custom.tasks.transformation.drop_null_geometry 
+    partial: 
+      gdf: ${{ workflow.map_illegal_grazing.return }}
+      geometry_column: "geometry"
+
   - name: Generate illegal grazing point layers
     id: generate_illegal_layers
     task: ecoscope_workflows_ext_custom.tasks.results.create_scatterplot_layer
@@ -909,7 +930,7 @@ workflow:
         sort: null
         label_suffix: null
       data_url: null
-      geodataframe: ${{ workflow.map_illegal_grazing.return }}
+      geodataframe: ${{ workflow.drop_null_grazing.return }}
   
   - name: Combine styled layers with illegal grazing layer
     id: combine_custom_illegal
