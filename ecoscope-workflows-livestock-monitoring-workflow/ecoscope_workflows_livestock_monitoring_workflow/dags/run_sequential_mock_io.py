@@ -1745,7 +1745,7 @@ def main(params: dict[str, Any], validate_params_schema: bool = True):
         .partial(
             input_column_name="Livestock Species",
             output_column_name="colors",
-            colormap="Set3",
+            colormap="Set1",
             df=capitalize_livestock_species,
             **(params.get("apply_livestock_colormap") or {}),
         )

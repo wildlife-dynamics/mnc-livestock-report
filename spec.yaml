@@ -742,7 +742,7 @@ workflow:
     partial:
       input_column_name: "Livestock Species"
       output_column_name: colors
-      colormap: Set3
+      colormap: Set1
       df: ${{ workflow.capitalize_livestock_species.return }}
   
   - name: Drop null geometry from livestock predation points 
