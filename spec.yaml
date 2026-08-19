@@ -530,6 +530,9 @@ workflow:
   - name: Create mobile boma map widget
     id: mobile_boma_map_widget
     task: create_map_widget_single_view
+    skipif:
+      conditions:
+        - never
     partial:
       title: "Mobile Boma Movement Map"
       data: ${{ workflow.persist_mobile_boma_urls.return }}
@@ -641,6 +644,9 @@ workflow:
   - name: Create cattle count summary table widget
     id: cattle_count_table_widget
     task: create_table_widget_single_view
+    skipif:
+      conditions:
+        - never
     partial:
       title: "Total Cattle Count Summary"
       data: ${{ workflow.cattle_count_table_html_url.return }}
@@ -724,6 +730,9 @@ workflow:
   - name: Create livestock predation summary table widget
     id: predation_summary_table_widget
     task: create_table_widget_single_view
+    skipif:
+      conditions:
+        - never
     partial:
       title: "Livestock Predation Summary"
       data: ${{ workflow.predation_summary_table_html_url.return }}
@@ -811,6 +820,9 @@ workflow:
   - name: Create livestock predation map widget
     id: livestock_predation_map_widget
     task: create_map_widget_single_view
+    skipif:
+      conditions:
+        - never
     partial:
       title: "Livestock Predation Events Map"
       data: ${{ workflow.persist_livestock_urls.return }}
@@ -966,6 +978,9 @@ workflow:
   - name: Create illegal grazing map widget
     id: illegal_grazing_map_widget
     task: create_map_widget_single_view
+    skipif:
+      conditions:
+        - never
     partial:
       title: "Illegal Grazing Events Map"
       data: ${{ workflow.persist_illegal_urls.return }}
