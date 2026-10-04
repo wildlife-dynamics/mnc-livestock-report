@@ -1,21 +1,10 @@
-name:  # Title Case, e.g. "My Ecoscope Workflow Template"
-
-# at least one author is required
+name: MNC Livestock Report
 author:
-  - name: ""
-    organization: ""
-    email: ""
+  - name: Tevin Temu
+    organization: Wildlife Dynamics
+    email: tevin@wildlifedynamics.com
 
-description: # A short description
-
-# todo: add example
-theory: "" # optional
-
-# todo: add example
-output_comment: "" # optional
-
-# optional
-# example
-# citation: 
-#   - Wu, Y. et al. (2025). "Monitoring elephant spatial patterns with Ecoscope workflows."
-citation: [] 
+description: Processes Mara North Conservancy mobile boma movement, cattle count, livestock predation, and illegal grazing events from EarthRanger and produces summary tables, maps over the conservancy's grazing zones and parcels, and an interactive dashboard.
+theory: "Each event type is processed as its own branch. Mobile boma and livestock predation events are counted as unique events per day, cattle counts are summed across grazing zones (Zone 1, Zone 2/3, and Zone 4) into a daily total, and predation records are summarised by livestock species, suspected predator (missing or Other values set to Unknown), and animals affected. Events are mapped as points over the conservancy boundary, colour-coded grazing zones, and parcels, with every map framed to the conservancy extent."
+output_comment: "Outputs four CSV tables (daily mobile boma movements, cattle counts by zone with a total, daily livestock predation events, and detailed predation records), three maps saved as HTML and PNG (mobile boma locations, livestock predation incidents coloured by species, and illegal grazing incidents), and a dashboard with the three maps and the cattle count and daily predation tables."
+citation: []
